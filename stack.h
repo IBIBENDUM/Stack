@@ -34,10 +34,14 @@
 
 #define DUMP_STACK(STK, FILE_PTR)\
     do {\
-        dump_stack(STK, FILE_PTR, __FILE__, __LINE__, __PRETTY_FUNCTION__);\
+        struct file_info INFO = { .file_name = __FILE__, \
+                                  .line = __LINE__,\
+                                  .func_name = __PRETTY_FUNCTION__\
+                                };\
+        dump_stack(STK, FILE_PTR, &INFO);\
     } while(0)
 
-const ssize_t DEFAULT_STACK_SIZE = 5;
+const ssize_t DEFAULT_STACK_SIZE = 5; // BAH: Make align to 8 bytes
 const int POISON_VALUE = INT_MAX;
 
 /// Stack error codes
@@ -49,6 +53,13 @@ enum stack_error_code
     NEGATIVE_CAPACITY,  ///< Capacity is lower than zero
     NEGATIVE_SIZE,      ///< Size is lower than zero
     WRONG_SIZE          ///< Size is larger than capacity
+};
+
+struct file_info
+{
+    const char* file_name;
+    const size_t line;
+    const char* func_name;
 };
 
 typedef int elem_t;
@@ -72,17 +83,18 @@ stack_error_code validate_stack(stack* stk) // BAH: Make error through bit opera
 }
 
 // struct for params
-stack_error_code dump_stack(stack* stk, FILE* file_ptr, const char* file_name, const size_t line, const char* func_name)
+stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct file_info* info)
 {
     assert(stk);
     assert(file_ptr);
-    assert(file_name);
-    assert(line);
-    assert(func_name);
+    assert(info->file_name);
+    assert(info->line);
+    assert(info->func_name);
 
-    fprintf(file_ptr, "\nstack[%p] called from %s(%d) %s\n", stk, file_name, line, func_name);
+    // BAH: I know about %p, but where was strange output with leading zeroes like 000004F856CD
+    fprintf(file_ptr, "\nstack[0x%X] called from %s(%d) %s\n", stk, info->file_name, info->line, info->func_name);
     fprintf(file_ptr, "called from file_name func_name\n");
-    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[%p]\n", stk->size, stk->capacity, stk->data);
+    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%X]\n", stk->size, stk->capacity, stk->data);
 
     // BAH: make working good with bad stack
     fprintf(file_ptr, TAB "{\n");
@@ -114,6 +126,8 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, const char* file_name, c
 
     fprintf(file_ptr, TAB "}\n");
     fprintf(file_ptr, "}\n");
+
+    return NO_ERROR;
 }
 
 bool check_for_stack_realloc(const stack* stk, ssize_t* const new_capacity)
@@ -145,6 +159,8 @@ stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
     {
         data_ptr[i] = POISON_VALUE;
     }
+
+    return NO_ERROR;
 }
 
 stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
@@ -173,10 +189,12 @@ stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     DEBUG_MSG("new_capacity = %d\n", new_capacity);
     // DEBUG_MSG("size until end = %d\n", new_capacity - stk->size);
 
-    // fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
+    fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
 
     stk->data = new_data;
     stk->capacity = new_capacity;
+
+    return NO_ERROR;
 
     // Handle errors
 }
@@ -213,6 +231,7 @@ stack_error_code pop_stack(stack* stk, elem_t* const value)
     *value = stk->data[stk->size];
     stk->data[stk->size] = POISON_VALUE;
 
+    return NO_ERROR;
 }
 
 stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: Add overload?
@@ -238,12 +257,14 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: 
 stack_error_code init_stack(stack* stk)
 {
     init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+    return NO_ERROR;
 }
 
 stack_error_code destruct_stack(stack* stk)
 {
     fill_data_with_poison(stk->data, stk->capacity);
     FREE_AND_NULL(stk->data);
+    return NO_ERROR;
 }
 
 #endif
