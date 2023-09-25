@@ -2,6 +2,8 @@
 
 #include "stack.h"
 
+#define ABOBA
+
 int main()
 {
     stack stk;
@@ -24,6 +26,18 @@ int main()
 
     push_stack(&stk, 6);
     DEBUG_MSG("push_stack(&stk, 6);\n");
+    DUMP_STACK(&stk, stdout);
+
+    elem_t value = 0;
+    pop_stack(&stk, &value);
+    DUMP_STACK(&stk, stdout);
+    pop_stack(&stk, &value);
+    DUMP_STACK(&stk, stdout);
+    pop_stack(&stk, &value);
+    DUMP_STACK(&stk, stdout);
+    pop_stack(&stk, &value);
+    DUMP_STACK(&stk, stdout);
+    pop_stack(&stk, &value);
     DUMP_STACK(&stk, stdout);
 
     destruct_stack(&stk);

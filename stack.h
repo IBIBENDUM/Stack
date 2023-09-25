@@ -13,10 +13,6 @@
 // BAH: 2) Make log file in html
 // use minimum of html tag for better eye read
 
-// what is local define???
-
-// Obfuscation??
-
 #ifdef DEBUG
     #define DEBUG_MSG(FORMAT, ...)\
         do {\
@@ -32,6 +28,15 @@
         PTR = NULL;\
     } while(0)
 
+#define STK_RETURN_IF_ERROR(PTR)\
+    do {\
+        stack_error_code error_code = validate_stack(stk);\
+        if (error_code != NO_ERROR)\
+        {\
+            return error_code;\
+        }\
+    } while(0)
+
 #define DUMP_STACK(STK, FILE_PTR)\
     do {\
         struct file_info INFO = { .file_name = __FILE__, \
@@ -41,7 +46,7 @@
         dump_stack(STK, FILE_PTR, &INFO);\
     } while(0)
 
-const ssize_t DEFAULT_STACK_SIZE = 5; // BAH: Make align to 8 bytes
+const ssize_t DEFAULT_STACK_SIZE = 8; // BAH: Make align to 8 bytes
 const int POISON_VALUE = INT_MAX;
 
 /// Stack error codes
@@ -50,6 +55,9 @@ enum stack_error_code
     NO_ERROR,           ///< No error occurred
     NULL_STACK_POINTER, ///< Pointer on stack have NULL value
     NULL_DATA,          ///< Pointer on data have NULL value
+    NULL_NEW_DATA,
+    NULL_VALUE_PTR,
+    ANTI_OVERFLOW,
     NEGATIVE_CAPACITY,  ///< Capacity is lower than zero
     NEGATIVE_SIZE,      ///< Size is lower than zero
     WRONG_SIZE          ///< Size is larger than capacity
@@ -62,6 +70,7 @@ struct file_info
     const char* func_name;
 };
 
+// BAH: Make ability change element type from main (by define mb?)
 typedef int elem_t;
 #define ELEM_FORMAT "%d"
 
@@ -79,6 +88,7 @@ stack_error_code validate_stack(stack* stk) // BAH: Make error through bit opera
     if (stk->capacity < 0)         return NEGATIVE_CAPACITY;
     if (stk->size < 0)             return NEGATIVE_SIZE;
     if (stk->size > stk->capacity) return WRONG_SIZE;
+
     return NO_ERROR;
 }
 
@@ -143,18 +153,24 @@ bool check_for_stack_realloc(const stack* stk, ssize_t* const new_capacity)
         *new_capacity = size * 2;
         return true;
     }
-//
-//     if (2 * size < capacity)
-//     {
-//         *new_capacity = 2 * size;
-//         return true;
-//     }
+
+    if (2 * size < capacity)
+    {
+        *new_capacity = 2 * size;
+        return true;
+    }
 
     return false;
 }
 
 stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
 {
+    if (!data_ptr)
+        return NULL_DATA;
+
+    if (size < 0)
+        return WRONG_SIZE;
+
     for (size_t i = 0; i < size; i++)
     {
         data_ptr[i] = POISON_VALUE;
@@ -168,48 +184,27 @@ stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     assert(stk);
     assert(new_capacity);
 
-    // FROM INTERNET:
-    // Note that your call to realloc
-    // will mean you lose your data if,
-    // for some reason the realloc fails
+    // Realloc vs calloc + memcpy?
+    elem_t* new_data = (elem_t*) realloc(stk->data, new_capacity * sizeof(new_data[0]));
 
-    // Or realloc?
-    elem_t* new_data = (elem_t*) calloc(new_capacity, sizeof(new_data[0]));
-    // Handle errors
-    // free and poison and null
-
-    // Use memcpy_s?
-    for (size_t i = 0; i < stk->size; i++)
+    if (new_data)
     {
-        DEBUG_MSG("stk->data[%d] = %d\n", i, stk->data[i]);
+        fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
+        stk->data = new_data;
+        stk->capacity = new_capacity;
+
+        return NO_ERROR;
     }
-    memcpy(new_data, stk->data, stk->size * sizeof(elem_t));
 
-    DEBUG_MSG("offset = %d\n", stk->size);
-    DEBUG_MSG("new_capacity = %d\n", new_capacity);
-    // DEBUG_MSG("size until end = %d\n", new_capacity - stk->size);
-
-    fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
-
-    stk->data = new_data;
-    stk->capacity = new_capacity;
-
-    return NO_ERROR;
-
-    // Handle errors
+    return NULL_NEW_DATA;
 }
 
 stack_error_code push_stack(stack* stk, const elem_t value)
 {
-    stack_error_code error_code = validate_stack(stk);
-    if (error_code != NO_ERROR)
-    {
-        return error_code;
-    }
+    STK_RETURN_IF_ERROR(stk);
 
-    // DEBUG_MSG("stk->size = %d\n", stk->size);
     stk->data[stk->size++] = value;
-    // DEBUG_MSG("after: stk->size = %d\n", stk->size);
+
     ssize_t new_capacity = 0;
     if (check_for_stack_realloc(stk, &new_capacity))
     {
@@ -221,22 +216,27 @@ stack_error_code push_stack(stack* stk, const elem_t value)
 
 stack_error_code pop_stack(stack* stk, elem_t* const value)
 {
-    stack_error_code error_code = validate_stack(stk);
-    if (error_code != NO_ERROR)
-    {
-        return error_code;
-    }
-    --stk->size;
-    // check for stack anti-overflow
-    *value = stk->data[stk->size];
-    stk->data[stk->size] = POISON_VALUE;
+    STK_RETURN_IF_ERROR(stk);
 
-    return NO_ERROR;
+    if (value)
+    {
+        if (stk->size - 1 >= 0)
+        {
+            *value = stk->data[--stk->size];
+            stk->data[stk->size] = POISON_VALUE;
+            return NO_ERROR;
+        }
+
+        return ANTI_OVERFLOW;
+    }
+
+    return NULL_VALUE_PTR;
 }
 
 stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: Add overload?
 {
-    if (capacity == 0)
+    // Make align bytes
+    if (capacity < 1)
         capacity = 1;
     elem_t* data = (elem_t*) calloc(capacity, sizeof(data[0]));
 
@@ -256,14 +256,22 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: 
 
 stack_error_code init_stack(stack* stk)
 {
-    init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
-    return NO_ERROR;
+    if (stk)
+    {
+        init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+        return NO_ERROR;
+    }
+
+    return NULL_STACK_POINTER;
 }
 
 stack_error_code destruct_stack(stack* stk)
 {
+    STK_RETURN_IF_ERROR(stk);
+
     fill_data_with_poison(stk->data, stk->capacity);
     FREE_AND_NULL(stk->data);
+
     return NO_ERROR;
 }
 
