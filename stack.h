@@ -124,7 +124,7 @@ bool check_for_stack_realloc(const stack* stk, ssize_t* const new_capacity)
     const ssize_t size = stk->size;
     const ssize_t capacity = stk->capacity;
 
-    if (size > capacity)
+    if (size + 1 > capacity)
     {
         *new_capacity = size * 2;
         return true;
@@ -157,15 +157,23 @@ stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     // will mean you lose your data if,
     // for some reason the realloc fails
 
+    // Or realloc?
     elem_t* new_data = (elem_t*) calloc(new_capacity, sizeof(new_data[0]));
     // Handle errors
     // free and poison and null
 
-    // Use memcpy_s
-    memcpy(new_data, stk->data, stk->size);
-    // memset(new_data + stk->size - 1, POISON_VALUE, new_capacity - stk->size + 1);
+    // Use memcpy_s?
+    for (size_t i = 0; i < stk->size; i++)
+    {
+        DEBUG_MSG("stk->data[%d] = %d\n", i, stk->data[i]);
+    }
+    memcpy(new_data, stk->data, stk->size * sizeof(elem_t));
 
-    fill_data_with_poison(new_data + stk->size - 1, new_capacity - stk->size + 1);
+    DEBUG_MSG("offset = %d\n", stk->size);
+    DEBUG_MSG("new_capacity = %d\n", new_capacity);
+    // DEBUG_MSG("size until end = %d\n", new_capacity - stk->size);
+
+    // fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
 
     stk->data = new_data;
     stk->capacity = new_capacity;
@@ -181,7 +189,9 @@ stack_error_code push_stack(stack* stk, const elem_t value)
         return error_code;
     }
 
+    // DEBUG_MSG("stk->size = %d\n", stk->size);
     stk->data[stk->size++] = value;
+    // DEBUG_MSG("after: stk->size = %d\n", stk->size);
     ssize_t new_capacity = 0;
     if (check_for_stack_realloc(stk, &new_capacity))
     {
@@ -207,6 +217,8 @@ stack_error_code pop_stack(stack* stk, elem_t* const value)
 
 stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: Add overload?
 {
+    if (capacity == 0)
+        capacity = 1;
     elem_t* data = (elem_t*) calloc(capacity, sizeof(data[0]));
 
     if (data)
