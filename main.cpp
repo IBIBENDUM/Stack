@@ -6,12 +6,11 @@ int main()
 {
     stack stk;
     // init_stack(&stk);
-    init_stack_with_capacity(&stk, 1);
+    init_stack_with_capacity(&stk, 0);
+    DUMP_STACK(&stk, stdout);
     push_stack(&stk, 3);
+    DUMP_STACK(&stk, stdout);
     push_stack(&stk, 4);
-    push_stack(&stk, 5);
-
-    stk.data[6] = 9;
     DUMP_STACK(&stk, stdout);
 
     destruct_stack(&stk);
