@@ -34,13 +34,11 @@ const size_t BYTE_ALIGN = 8;
         unsigned error_bitmask = validate_stack(PTR);\
         if (error_bitmask)\
         {\
-            /* make conditional compilation */ \
-            /* remove print */        \
             printf("Error occurred:\n");\
             print_errors(error_bitmask);\
             DUMP_STACK(PTR, stdout);\
             assert(0);\
-            /* return ... */ \
+            return error_bitmask;\
         }\
     } while(0)
 
@@ -183,6 +181,7 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
         {
             fprintf(file_ptr, TAB TAB "NULL\n");
         }
+
         else
         {
 
@@ -336,10 +335,10 @@ ssize_t align_capacity(const ssize_t capacity)
 stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct initialize_info* info)
 {
     assert(info);
-    // assert(info->var_name  ||
-    //        info->file_name ||
-    //        info->line      ||
-    //        info->func_name ||);
+    assert(info->var_name);
+    assert(info->file_name);
+    assert(info->line);
+    assert(info->func_name);
 
     if (stk)
     {
@@ -371,16 +370,16 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct i
     return NULL_STACK_POINTER;
 }
 
-// stack_error_code init_stack(stack* stk)
-// {
-//     if (stk)
-//     {
-//         init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
-//         return NO_ERROR;
-//     }
-//
-//     return NULL_STACK_POINTER;
-// }
+stack_error_code init_stack(stack* stk)
+{
+    if (stk)
+    {
+        init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+        return NO_ERROR;
+    }
+
+    return NULL_STACK_POINTER;
+}
 
 stack_error_code destruct_stack(stack* stk)
 {
