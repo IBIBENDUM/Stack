@@ -9,43 +9,46 @@
 int main()
 {
     stack stk;
-
-    // init_stack(&stk);
-    init_stack_with_capacity(&stk, 1);
-    DEBUG_MSG("init_stack_with_capacity(&stk, 0);\n");
-    DUMP_STACK(&stk, stdout);
-
-    push_stack(&stk, 3);
-    DEBUG_MSG("push_stack(&stk, 3);\n");
-    DUMP_STACK(&stk, stdout);
-
     stack* stk_ptr = &stk;
-    for (size_t i = 0; i < 40; i++)
-        ((char*) stk_ptr)[i] = 0;
 
-    push_stack(&stk, 4);
-    DEBUG_MSG("push_stack(&stk, 4);\n");
-    DUMP_STACK(&stk, stdout);
+    // init_stack(stk_ptr);
+    init_stack_with_capacity(stk_ptr, 1);
+    DEBUG_MSG("init_stack_with_capacity(stk_ptr, 0);\n");
+    DUMP_STACK(stk_ptr, stdout);
 
-    push_stack(&stk, 5);
-    DEBUG_MSG("push_stack(&stk, 5);\n");
-    DUMP_STACK(&stk, stdout);
+    push_stack(stk_ptr, 3);
+    DEBUG_MSG("push_stack(stk_ptr, 3);\n");
+    DUMP_STACK(stk_ptr, stdout);
 
-    push_stack(&stk, 6);
-    DEBUG_MSG("push_stack(&stk, 6);\n");
-    DUMP_STACK(&stk, stdout);
 
-    elem_t value = 0;
-    pop_stack(&stk, &value);
-    DUMP_STACK(&stk, stdout);
-    pop_stack(&stk, &value);
-    DUMP_STACK(&stk, stdout);
-    pop_stack(&stk, &value);
-    DUMP_STACK(&stk, stdout);
-    pop_stack(&stk, &value);
-    DUMP_STACK(&stk, stdout);
-    pop_stack(&stk, &value);
-    DUMP_STACK(&stk, stdout);
+    push_stack(stk_ptr, 4);
+    DEBUG_MSG("push_stack(stk_ptr, 4);\n");
+    DUMP_STACK(stk_ptr, stdout);
 
-    destruct_stack(&stk);
+    // for (size_t i = 0; i < sizeof(stk); i++)
+    //     ((char*) stk_ptr)[i] = 0;
+
+    push_stack(stk_ptr, 5);
+    DEBUG_MSG("push_stack(stk_ptr, 5);\n");
+    DUMP_STACK(stk_ptr, stdout);
+
+    push_stack(stk_ptr, 6);
+    DEBUG_MSG("push_stack(stk_ptr, 6);\n");
+    DUMP_STACK(stk_ptr, stdout);
+
+//     elem_t value = 0;
+//     pop_stack(stk_ptr, &value);
+//     DUMP_STACK(stk_ptr, stdout);
+//     pop_stack(stk_ptr, &value);
+//     DUMP_STACK(stk_ptr, stdout);
+//     pop_stack(stk_ptr, &value);
+//     DUMP_STACK(stk_ptr, stdout);
+//     pop_stack(stk_ptr, &value);
+//     DUMP_STACK(stk_ptr, stdout);
+//     pop_stack(stk_ptr, &value);
+    // DUMP_STACK(stk_ptr, stdout);
+
+    destruct_stack(stk_ptr);
+    // DUMP_STACK(stk_ptr, stdout);
+
 }

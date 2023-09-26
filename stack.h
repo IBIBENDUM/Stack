@@ -9,6 +9,7 @@
 
 #define TAB "    " // Because \t is too big
 
+const size_t BYTE_ALIGN = 8;
 // BAH: 1) Make log file
 // BAH: 2) Make log file in html
 // use minimum of html tag for better eye read
@@ -30,12 +31,16 @@
 
 #define RETURN_ERR_IF_STK_WRONG(PTR)\
     do {\
-        unsigned error_bitmask = validate_stack(stk);\
+        unsigned error_bitmask = validate_stack(PTR);\
         if (error_bitmask)\
         {\
+            /* make conditional compilation */ \
+            /* remove print */        \
             printf("Error occurred:\n");\
             print_errors(error_bitmask);\
-            abort();\
+            DUMP_STACK(PTR, stdout);\
+            assert(0);\
+            /* return ... */ \
         }\
     } while(0)
 
@@ -58,12 +63,12 @@ const int POISON_VALUE = INT_MAX;
   INIT_ERROR(NULL_NEW_DATA)\
   INIT_ERROR(DEAD_LEFT_SNITCH)\
   INIT_ERROR(DEAD_RIGHT_SNITCH)\
+  INIT_ERROR(DEAD_LEFT_DATA_SNITCH)\
   INIT_ERROR(NEGATIVE_CAPACITY)\
   INIT_ERROR(NEGATIVE_SIZE)\
   INIT_ERROR(WRONG_SIZE)\
   INIT_ERROR(NULL_VALUE_PTR)\
   INIT_ERROR(ANTI_OVERFLOW)
-
 
 enum stack_error_code
 {
@@ -72,11 +77,12 @@ enum stack_error_code
     #undef INIT_ERROR
 };
 
-const char* const stack_error_messages[] =
+struct initialize_info
 {
-    #define INIT_ERROR(ERR_NAME) #ERR_NAME,
-        STACK_ERRORS
-    #undef INIT_ERROR
+    const char* struct_var_name;
+    const char* file_name;
+    const ssize_t line;
+    const char* func_name;
 };
 
 struct dump_info
@@ -95,16 +101,15 @@ typedef VALUE_TYPE elem_t;
 #define ELEM_FORMAT "%d"
 #endif
 
-const long long snitch_value = 0x0ACAB228;
+const unsigned long long SNITCH_VALUE = 0xABCDABCDABCDABCD    ; // Make bigger
 typedef struct STACK
 {
-    long long left_snitch = snitch_value;
+    unsigned long long left_snitch = SNITCH_VALUE;
     elem_t* data;
     ssize_t size;
     ssize_t capacity;
-    long long right_snitch = snitch_value;
+    unsigned long long right_snitch = SNITCH_VALUE;
 } stack;
-
 
 void print_errors(unsigned val)
 {
@@ -114,30 +119,16 @@ void print_errors(unsigned val)
         {
             switch (i)
             {
-                case NO_ERROR:           printf("%s\n", stack_error_messages[NO_ERROR]);           break;
-                case NULL_STACK_POINTER: printf("%s\n", stack_error_messages[NULL_STACK_POINTER]); break;
-                case NULL_DATA:          printf("%s\n", stack_error_messages[NULL_DATA]);          break;
-                case NULL_NEW_DATA:      printf("%s\n", stack_error_messages[NULL_NEW_DATA]);      break;
-                case DEAD_LEFT_SNITCH:   printf("%s\n", stack_error_messages[DEAD_LEFT_SNITCH]);   break;
-                case DEAD_RIGHT_SNITCH:  printf("%s\n", stack_error_messages[DEAD_RIGHT_SNITCH]);  break;
-                case NEGATIVE_CAPACITY:  printf("%s\n", stack_error_messages[NEGATIVE_CAPACITY]);  break;
-                case NEGATIVE_SIZE:      printf("%s\n", stack_error_messages[NEGATIVE_SIZE]);      break;
-                case WRONG_SIZE:         printf("%s\n", stack_error_messages[WRONG_SIZE]);         break;
-                case NULL_VALUE_PTR:     printf("%s\n", stack_error_messages[NULL_VALUE_PTR]);     break;
-                case ANTI_OVERFLOW:      printf("%s\n", stack_error_messages[ANTI_OVERFLOW]);      break;
+                #define INIT_ERROR(ERR_NAME)\
+                    case ERR_NAME: printf("%s\n", #ERR_NAME); break;
+                    STACK_ERRORS
+                #undef INIT_ERROR
+                #undef STACK_ERRORS
                 default: break;
             }
         }
     }
 }
-
-// void print_bits(char val)
-// {
-//     for (int i = 0; i < sizeof(val) * 8; i++)
-//     {
-//         printf("%c", (val & (1 << i)) ? '1' : '0');
-//     }
-// }
 
 static unsigned validate_stack(stack* stk)
 {
@@ -145,8 +136,10 @@ static unsigned validate_stack(stack* stk)
 
     if (!stk)                              error_bitmask |= 1 << NULL_STACK_POINTER;
     if (!stk->data)                        error_bitmask |= 1 << NULL_DATA;
-    if (stk->left_snitch  != snitch_value) error_bitmask |= 1 << DEAD_LEFT_SNITCH;
-    if (stk->right_snitch != snitch_value) error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    if (stk->left_snitch  != SNITCH_VALUE) error_bitmask |= 1 << DEAD_LEFT_SNITCH;
+    if (stk->right_snitch != SNITCH_VALUE) error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    if (*((long long*) stk->data - 1)
+        != SNITCH_VALUE)                   error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
     if (stk->capacity < 0)                 error_bitmask |= 1 << NEGATIVE_CAPACITY;
     if (stk->size     < 0)                 error_bitmask |= 1 << NEGATIVE_SIZE;
     if (stk->size     > stk->capacity)     error_bitmask |= 1 << WRONG_SIZE;
@@ -171,30 +164,47 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%X]\n", stk->size, stk->capacity, stk->data);
 
     fprintf(file_ptr, TAB "{\n");
-    if (stk->capacity < 1)
-    {
-        fprintf(file_ptr, TAB TAB "NULL\n");
-    }
-    else
-    {
-        for (size_t i = 0; i < stk->capacity; i++)
-        {
-            while (i < stk->capacity && stk->data[i] != POISON_VALUE)
-            {
-                fprintf(file_ptr, TAB TAB "*[%d] = " ELEM_FORMAT "\n", i, stk->data[i]);
-                i++;
-            }
-            if (i < stk->capacity && stk->data[i - 1] != POISON_VALUE)
-                fprintf(file_ptr, TAB TAB "... (POISON)\n");
-        }
-    }
-    fprintf(file_ptr, TAB "}\n");
-    fprintf(file_ptr, "}\n");
 
-    return NO_ERROR;
+    if (stk->data)
+    {
+        fprintf(file_ptr, TAB TAB "data_left_bird = 0x%llX\n", *(unsigned long long*)((char*)stk->data - sizeof(long long)));
+        if (stk->capacity < 1)
+        {
+            fprintf(file_ptr, TAB TAB "NULL\n");
+        }
+        else
+        {
+
+            for (size_t i = 0; i < stk->capacity; i++)
+            {
+                while (i < stk->capacity && stk->data[i] != POISON_VALUE)
+                {
+                    fprintf(file_ptr, TAB TAB "*[%d] = " ELEM_FORMAT "\n", i, stk->data[i]);
+                    i++;
+                }
+                if (i < stk->capacity && stk->data[i - 1] != POISON_VALUE)
+                    fprintf(file_ptr, TAB TAB "... (POISON)\n");
+            }
+        }
+        fprintf(file_ptr, TAB TAB "data_right_bird = 0x%llX\n", *(unsigned long long*)(stk->data + stk->capacity));
+
+        fprintf(file_ptr, TAB "}\n");
+        fprintf(file_ptr, "}\n");
+
+
+        return NO_ERROR;
+    }
+
+    return NULL_DATA;
 }
 
-static bool check_for_stack_realloc(const stack* stk, ssize_t* const new_capacity)
+void paste_snitch_value(void* data_void)
+{
+    long long* data = (long long*) data_void;
+    data[0] = SNITCH_VALUE;
+}
+
+static stack_error_code calculate_new_capacity(const stack* stk, ssize_t* const new_capacity)
 {
     assert(new_capacity);
 
@@ -206,17 +216,15 @@ static bool check_for_stack_realloc(const stack* stk, ssize_t* const new_capacit
 
     if (size + 1 > capacity)
     {
-        *new_capacity = size * 2;
-        return true;
+        *new_capacity = capacity * 2;
     }
 
-    if (4 * size < capacity)
+    else if (4 * size < capacity)
     {
         *new_capacity = capacity / 2;
-        return true;
     }
 
-    return false;
+    return NO_ERROR;
 }
 
 static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
@@ -246,13 +254,19 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         return WRONG_SIZE;
 
     // Realloc vs calloc + memcpy?
-    elem_t* new_data = (elem_t*) realloc(stk->data, new_capacity * sizeof(new_data[0]));
+    *(long long*)(stk->data + stk->capacity) = 0;
+    elem_t* new_data = (elem_t*) realloc((char*)stk->data - sizeof(long long), new_capacity * sizeof(new_data[0]) + 2 * sizeof(long long));
+
+
+    // elem_t* data = (elem_t*) calloc(capacity + 2 * sizeof(long long) / sizeof(data[0]), sizeof(data[0]));
 
     if (new_data)
     {
-        fill_data_with_poison(new_data + stk->size, new_capacity - stk->size);
-        stk->data = new_data;
+        elem_t* data_ptr = new_data + sizeof(long long) / sizeof(new_data[0]);
+        fill_data_with_poison(data_ptr + stk->size, new_capacity - stk->size);
+        stk->data = data_ptr;
         stk->capacity = new_capacity;
+        paste_snitch_value(stk->data + stk->capacity);
 
         return NO_ERROR;
     }
@@ -267,7 +281,8 @@ stack_error_code push_stack(stack* stk, const elem_t value)
     stk->data[stk->size++] = value;
 
     ssize_t new_capacity = 0;
-    if (check_for_stack_realloc(stk, &new_capacity))
+    calculate_new_capacity(stk, &new_capacity);
+    if (new_capacity)
     {
         return realloc_stack(stk, new_capacity);
     }
@@ -286,7 +301,8 @@ stack_error_code pop_stack(stack* stk, elem_t* const value)
             *value = stk->data[--stk->size];
             stk->data[stk->size] = POISON_VALUE;
             ssize_t new_capacity = 0;
-            if (check_for_stack_realloc(stk, &new_capacity))
+            calculate_new_capacity(stk, &new_capacity);
+            if (new_capacity)
             {
                 return realloc_stack(stk, new_capacity);
             }
@@ -298,24 +314,34 @@ stack_error_code pop_stack(stack* stk, elem_t* const value)
     return NULL_VALUE_PTR;
 }
 
-stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: Add overload?
+ssize_t align_capacity(const ssize_t capacity)
 {
-    // Make align bytes
+    size_t bytes_count = capacity * sizeof(elem_t);
+    return (bytes_count + BYTE_ALIGN - bytes_count % BYTE_ALIGN) / sizeof(elem_t);
+    // return bytes_count / BYTE_ALIGN + 1;
+}
+
+// void paste_snitch_value_to_data(elem_t*
+
+stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct* initialize_info)
+{
     if (stk)
     {
         if (capacity < 1)
             capacity = 1;
-        elem_t* data = (elem_t*) calloc(capacity, sizeof(data[0]));
 
+        capacity = align_capacity(capacity);
+
+        elem_t* data = (elem_t*) calloc(capacity + 2 * sizeof(long long) / sizeof(data[0]), sizeof(data[0]));
         if (data)
         {
-            stk->data = data;
+            stk->data = (elem_t*) ((char*)data + sizeof(long long));
             stk->size = 0;
             stk->capacity = capacity;
-            fill_data_with_poison(stk->data, stk->capacity);
-            // stack_error_code err_code = validate_stack(stk);
 
-            // return err_code;
+            paste_snitch_value(data);
+            paste_snitch_value(stk->data + capacity);
+            fill_data_with_poison(stk->data, stk->capacity);
         }
 
         return NULL_DATA;
@@ -324,25 +350,29 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: 
     return NULL_STACK_POINTER;
 }
 
-stack_error_code init_stack(stack* stk)
+// stack_error_code init_stack(stack* stk)
+// {
+//     if (stk)
+//     {
+//         init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+//         return NO_ERROR;
+//     }
+//
+//     return NULL_STACK_POINTER;
+// }
+
+stack_error_code destruct_stack(stack* stk)
 {
     if (stk)
     {
-        init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+        elem_t* data_ptr = (elem_t*)((char*)stk->data - sizeof(long long));
+        fill_data_with_poison(data_ptr, stk->capacity);
+        FREE_AND_NULL(data_ptr);
+
         return NO_ERROR;
     }
 
     return NULL_STACK_POINTER;
-}
-
-stack_error_code destruct_stack(stack* stk)
-{
-    RETURN_ERR_IF_STK_WRONG(stk);
-
-    fill_data_with_poison(stk->data, stk->capacity);
-    FREE_AND_NULL(stk->data);
-
-    return NO_ERROR;
 }
 
 #endif
