@@ -51,37 +51,25 @@
 const ssize_t DEFAULT_STACK_SIZE = 8; // BAH: Make align to 8 bytes
 const int POISON_VALUE = INT_MAX;
 
-#define STACK_ERRORS \
-  INIT_ERROR(NO_ERROR)           \
-  INIT_ERROR(NULL_STACK_POINTER)            \
-  INIT_ERROR(NULL_DATA)            \
-  INIT_ERROR(NULL_NEW_DATA)          \
-  INIT_ERROR(DEAD_LEFT_SNITCH)          \
-  INIT_ERROR(DEAD_RIGHT_SNITCH)          \
-  INIT_ERROR(NEGATIVE_CAPACITY)          \
-  INIT_ERROR(NEGATIVE_SIZE)          \
-  INIT_ERROR(WRONG_SIZE)          \
-  INIT_ERROR(NULL_VALUE_PTR)          \
+#define STACK_ERRORS\
+  INIT_ERROR(NO_ERROR)\
+  INIT_ERROR(NULL_STACK_POINTER)\
+  INIT_ERROR(NULL_DATA)\
+  INIT_ERROR(NULL_NEW_DATA)\
+  INIT_ERROR(DEAD_LEFT_SNITCH)\
+  INIT_ERROR(DEAD_RIGHT_SNITCH)\
+  INIT_ERROR(NEGATIVE_CAPACITY)\
+  INIT_ERROR(NEGATIVE_SIZE)\
+  INIT_ERROR(WRONG_SIZE)\
+  INIT_ERROR(NULL_VALUE_PTR)\
   INIT_ERROR(ANTI_OVERFLOW)
 
 
-/// ` error codes
 enum stack_error_code
 {
     #define INIT_ERROR(ERR_CODE) ERR_CODE,
         STACK_ERRORS
     #undef INIT_ERROR
-    // NO_ERROR,           ///< No error occurred
-    // NULL_STACK_POINTER, ///< Pointer on stack have NULL value
-    // NULL_DATA,          ///< Pointer on data have NULL value
-    // NULL_NEW_DATA,
-    // DEAD_LEFT_SNITCH,
-    // DEAD_RIGHT_SNITCH,
-    // NEGATIVE_CAPACITY,  ///< Capacity is lower than zero
-    // NEGATIVE_SIZE,      ///< Size is lower than zero
-    // WRONG_SIZE,          ///< Size is larger than capacity
-    // NULL_VALUE_PTR,
-    // ANTI_OVERFLOW
 };
 
 const char* const stack_error_messages[] =
@@ -89,18 +77,6 @@ const char* const stack_error_messages[] =
     #define INIT_ERROR(ERR_NAME) #ERR_NAME,
         STACK_ERRORS
     #undef INIT_ERROR
-
-    // "NO_ERROR",
-    // "NULL_STACK_POINTER",
-    // "NULL_DATA",
-    // "NULL_NEW_DATA",
-    // "DEAD_LEFT_SNITCH",
-    // "DEAD_RIGHT_SNITCH",
-    // "NEGATIVE_CAPACITY",
-    // "NEGATIVE_SIZE",
-    // "WRONG_SIZE",
-    // "NULL_VALUE_PTR",
-    // "ANTI_OVERFLOW"
 };
 
 struct dump_info
@@ -110,7 +86,6 @@ struct dump_info
     const char* func_name;
 };
 
-// BAH: Make ability change element type from main (by define mb?)
 #ifndef VALUE_TYPE
 #define VALUE_TYPE int
 #endif
@@ -164,7 +139,7 @@ void print_errors(unsigned val)
 //     }
 // }
 
-static unsigned validate_stack(stack* stk) // BAH: Make error through bit operations
+static unsigned validate_stack(stack* stk)
 {
     unsigned error_bitmask = 0;
 
@@ -181,9 +156,6 @@ static unsigned validate_stack(stack* stk) // BAH: Make error through bit operat
 
 stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
 {
-    if(!stk)
-        return NULL_STACK_POINTER;
-
     assert(file_ptr);
     assert(info->file_name);
     assert(info->line);
@@ -192,6 +164,10 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
     // BAH: I know about %p, but where was strange output with leading zeroes like 000004F856CD
     fprintf(file_ptr, "\nstack[0x%X] called from %s(%d) %s\n", stk, info->file_name, info->line, info->func_name);
     fprintf(file_ptr, "called from file_name func_name\n");
+
+    if(!stk)
+        return NULL_STACK_POINTER;
+
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%X]\n", stk->size, stk->capacity, stk->data);
 
     fprintf(file_ptr, TAB "{\n");
@@ -327,7 +303,7 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: 
     // Make align bytes
     if (stk)
     {
-        if (capacity < 1) // Remake this
+        if (capacity < 1)
             capacity = 1;
         elem_t* data = (elem_t*) calloc(capacity, sizeof(data[0]));
 
