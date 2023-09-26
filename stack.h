@@ -38,7 +38,7 @@ const size_t BYTE_ALIGN = 8;
             print_errors(error_bitmask);\
             DUMP_STACK(PTR, stdout);\
             assert(0);\
-            return error_bitmask;\
+            /* return error_bitmask; */ \
         }\
     } while(0)
 
@@ -176,7 +176,7 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
 
     if (stk->data)
     {
-        fprintf(file_ptr, TAB TAB "data_left_bird = 0x%llX\n", *(unsigned long long*)((char*)stk->data - sizeof(long long)));
+        fprintf(file_ptr, TAB TAB "data_left_snitch = 0x%llX\n", *(unsigned long long*)((char*)stk->data - sizeof(long long)));
         if (stk->capacity < 1)
         {
             fprintf(file_ptr, TAB TAB "NULL\n");
@@ -196,7 +196,7 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
                     fprintf(file_ptr, TAB TAB "... (POISON)\n");
             }
         }
-        fprintf(file_ptr, TAB TAB "data_right_bird = 0x%llX\n", *(unsigned long long*)(stk->data + stk->capacity));
+        fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(unsigned long long*)(stk->data + stk->capacity));
 
         fprintf(file_ptr, TAB "}\n");
         fprintf(file_ptr, "}\n");
@@ -370,16 +370,16 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct i
     return NULL_STACK_POINTER;
 }
 
-stack_error_code init_stack(stack* stk)
-{
-    if (stk)
-    {
-        init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
-        return NO_ERROR;
-    }
-
-    return NULL_STACK_POINTER;
-}
+// stack_error_code init_stack(stack* stk)
+// {
+//     if (stk)
+//     {
+//         init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
+//         return NO_ERROR;
+//     }
+//
+//     return NULL_STACK_POINTER;
+// }
 
 stack_error_code destruct_stack(stack* stk)
 {
