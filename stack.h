@@ -53,6 +53,16 @@ const size_t BYTE_ALIGN = 8;
         dump_stack(STK, FILE_PTR, &INFO);\
     } while(0)
 
+#define INIT_STACK(STK, CAPACITY)\
+    do {\
+        struct initialize_info INFO = { .var_name = #STK,\
+                                        .file_name = __FILE__,\
+                                        .line = __LINE__,\
+                                        .func_name = __PRETTY_FUNCTION__\
+                                      };\
+        init_stack_with_capacity(&STK, CAPACITY, &INFO);\
+    } while(0)
+
 const ssize_t DEFAULT_STACK_SIZE = 8; // BAH: Make align to 8 bytes
 const int POISON_VALUE = INT_MAX;
 
@@ -79,9 +89,9 @@ enum stack_error_code
 
 struct initialize_info
 {
-    const char* struct_var_name;
+    const char* var_name;
     const char* file_name;
-    const ssize_t line;
+    ssize_t line;
     const char* func_name;
 };
 
@@ -101,10 +111,11 @@ typedef VALUE_TYPE elem_t;
 #define ELEM_FORMAT "%d"
 #endif
 
-const unsigned long long SNITCH_VALUE = 0xABCDABCDABCDABCD    ; // Make bigger
+const unsigned long long SNITCH_VALUE = 0x4BADC0DEDA551337;
 typedef struct STACK
 {
     unsigned long long left_snitch = SNITCH_VALUE;
+    struct initialize_info init_info;
     elem_t* data;
     ssize_t size;
     ssize_t capacity;
@@ -154,14 +165,14 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
     assert(info->line);
     assert(info->func_name);
 
-    // BAH: I know about %p, but where was strange output with leading zeroes like 000004F856CD
-    fprintf(file_ptr, "\nstack[0x%X] called from %s(%d) %s\n", stk, info->file_name, info->line, info->func_name);
-    fprintf(file_ptr, "called from file_name func_name\n");
+    fprintf(file_ptr, "\nstack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
+                                                                              stk->init_info.line, stk->init_info.func_name);
+    fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
 
     if(!stk)
         return NULL_STACK_POINTER;
 
-    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%X]\n", stk->size, stk->capacity, stk->data);
+    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
 
     fprintf(file_ptr, TAB "{\n");
 
@@ -190,7 +201,6 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
 
         fprintf(file_ptr, TAB "}\n");
         fprintf(file_ptr, "}\n");
-
 
         return NO_ERROR;
     }
@@ -323,8 +333,14 @@ ssize_t align_capacity(const ssize_t capacity)
 
 // void paste_snitch_value_to_data(elem_t*
 
-stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct* initialize_info)
+stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct initialize_info* info)
 {
+    assert(info);
+    // assert(info->var_name  ||
+    //        info->file_name ||
+    //        info->line      ||
+    //        info->func_name ||);
+
     if (stk)
     {
         if (capacity < 1)
@@ -342,6 +358,11 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct* 
             paste_snitch_value(data);
             paste_snitch_value(stk->data + capacity);
             fill_data_with_poison(stk->data, stk->capacity);
+
+            stk->init_info.var_name = info->var_name;
+            stk->init_info.file_name = info->file_name;
+            stk->init_info.line = info->line;
+            stk->init_info.func_name = info->func_name;
         }
 
         return NULL_DATA;

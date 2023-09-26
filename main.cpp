@@ -12,8 +12,8 @@ int main()
     stack* stk_ptr = &stk;
 
     // init_stack(stk_ptr);
-    init_stack_with_capacity(stk_ptr, 1);
-    DEBUG_MSG("init_stack_with_capacity(stk_ptr, 0);\n");
+    INIT_STACK(stk, 1);
+    DEBUG_MSG("INIT_STACK(stk, 0);\n");
     DUMP_STACK(stk_ptr, stdout);
 
     push_stack(stk_ptr, 3);
