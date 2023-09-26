@@ -31,9 +31,10 @@
 #define RETURN_ERR_IF_STK_WRONG(PTR)\
     do {\
         unsigned error_bitmask = validate_stack(stk);\
-        if (error_bitmask != NO_ERROR)\
+        if (error_bitmask)\
         {\
-            printf("TXLIB соболезнует: err_code %d", error_code);\
+            printf("Error occurred:\n");\
+            print_errors(error_bitmask);\
             abort();\
         }\
     } while(0)
@@ -50,20 +51,56 @@
 const ssize_t DEFAULT_STACK_SIZE = 8; // BAH: Make align to 8 bytes
 const int POISON_VALUE = INT_MAX;
 
+#define STACK_ERRORS \
+  INIT_ERROR(NO_ERROR)           \
+  INIT_ERROR(NULL_STACK_POINTER)            \
+  INIT_ERROR(NULL_DATA)            \
+  INIT_ERROR(NULL_NEW_DATA)          \
+  INIT_ERROR(DEAD_LEFT_SNITCH)          \
+  INIT_ERROR(DEAD_RIGHT_SNITCH)          \
+  INIT_ERROR(NEGATIVE_CAPACITY)          \
+  INIT_ERROR(NEGATIVE_SIZE)          \
+  INIT_ERROR(WRONG_SIZE)          \
+  INIT_ERROR(NULL_VALUE_PTR)          \
+  INIT_ERROR(ANTI_OVERFLOW)
+
+
 /// ` error codes
 enum stack_error_code
 {
-    NO_ERROR,           ///< No error occurred
-    NULL_STACK_POINTER, ///< Pointer on stack have NULL value
-    NULL_DATA,          ///< Pointer on data have NULL value
-    NULL_NEW_DATA,
-    NULL_VALUE_PTR,
-    DEAD_LEFT_SNITCH,
-    DEAD_RIGHT_SNITCH,
-    ANTI_OVERFLOW,
-    NEGATIVE_CAPACITY,  ///< Capacity is lower than zero
-    NEGATIVE_SIZE,      ///< Size is lower than zero
-    WRONG_SIZE          ///< Size is larger than capacity
+    #define INIT_ERROR(ERR_CODE) ERR_CODE,
+        STACK_ERRORS
+    #undef INIT_ERROR
+    // NO_ERROR,           ///< No error occurred
+    // NULL_STACK_POINTER, ///< Pointer on stack have NULL value
+    // NULL_DATA,          ///< Pointer on data have NULL value
+    // NULL_NEW_DATA,
+    // DEAD_LEFT_SNITCH,
+    // DEAD_RIGHT_SNITCH,
+    // NEGATIVE_CAPACITY,  ///< Capacity is lower than zero
+    // NEGATIVE_SIZE,      ///< Size is lower than zero
+    // WRONG_SIZE,          ///< Size is larger than capacity
+    // NULL_VALUE_PTR,
+    // ANTI_OVERFLOW
+};
+
+const char* const stack_error_messages[] =
+{
+    #define INIT_ERROR(ERR_NAME) #ERR_NAME,
+        STACK_ERRORS
+    #undef INIT_ERROR
+
+    // "NO_ERROR",
+    // "NULL_STACK_POINTER",
+    // "NULL_DATA",
+    // "NULL_NEW_DATA",
+    // "DEAD_LEFT_SNITCH",
+    // "DEAD_RIGHT_SNITCH",
+    // "NEGATIVE_CAPACITY",
+    // "NEGATIVE_SIZE",
+    // "WRONG_SIZE",
+    // "NULL_VALUE_PTR",
+    // "ANTI_OVERFLOW"
 };
 
 struct dump_info
@@ -83,7 +120,7 @@ typedef VALUE_TYPE elem_t;
 #define ELEM_FORMAT "%d"
 #endif
 
-const long long snitch_value = 0xDEADB19D;
+const long long snitch_value = 0x0ACAB228;
 typedef struct STACK
 {
     long long left_snitch = snitch_value;
@@ -93,18 +130,53 @@ typedef struct STACK
     long long right_snitch = snitch_value;
 } stack;
 
+
+void print_errors(unsigned val)
+{
+    for (size_t i = 0; i < sizeof(val) * 8; i++)
+    {
+        if (val & (1 << i))
+        {
+            switch (i)
+            {
+                case NO_ERROR:           printf("%s\n", stack_error_messages[NO_ERROR]);           break;
+                case NULL_STACK_POINTER: printf("%s\n", stack_error_messages[NULL_STACK_POINTER]); break;
+                case NULL_DATA:          printf("%s\n", stack_error_messages[NULL_DATA]);          break;
+                case NULL_NEW_DATA:      printf("%s\n", stack_error_messages[NULL_NEW_DATA]);      break;
+                case DEAD_LEFT_SNITCH:   printf("%s\n", stack_error_messages[DEAD_LEFT_SNITCH]);   break;
+                case DEAD_RIGHT_SNITCH:  printf("%s\n", stack_error_messages[DEAD_RIGHT_SNITCH]);  break;
+                case NEGATIVE_CAPACITY:  printf("%s\n", stack_error_messages[NEGATIVE_CAPACITY]);  break;
+                case NEGATIVE_SIZE:      printf("%s\n", stack_error_messages[NEGATIVE_SIZE]);      break;
+                case WRONG_SIZE:         printf("%s\n", stack_error_messages[WRONG_SIZE]);         break;
+                case NULL_VALUE_PTR:     printf("%s\n", stack_error_messages[NULL_VALUE_PTR]);     break;
+                case ANTI_OVERFLOW:      printf("%s\n", stack_error_messages[ANTI_OVERFLOW]);      break;
+                default: break;
+            }
+        }
+    }
+}
+
+// void print_bits(char val)
+// {
+//     for (int i = 0; i < sizeof(val) * 8; i++)
+//     {
+//         printf("%c", (val & (1 << i)) ? '1' : '0');
+//     }
+// }
+
 static unsigned validate_stack(stack* stk) // BAH: Make error through bit operations
 {
     unsigned error_bitmask = 0;
-    if (!stk)                              return NULL_STACK_POINTER;
-    if (!stk->data)                        return NULL_DATA;
-    if (stk->left_snitch  != snitch_value) return DEAD_LEFT_SNITCH;
-    if (stk->right_snitch != snitch_value) return DEAD_RIGHT_SNITCH;
-    if (stk->capacity < 0)                 return NEGATIVE_CAPACITY;
-    if (stk->size     < 0)                 return NEGATIVE_SIZE;
-    if (stk->size     > stk->capacity)     return WRONG_SIZE;
 
-    return NO_ERROR;
+    if (!stk)                              error_bitmask |= 1 << NULL_STACK_POINTER;
+    if (!stk->data)                        error_bitmask |= 1 << NULL_DATA;
+    if (stk->left_snitch  != snitch_value) error_bitmask |= 1 << DEAD_LEFT_SNITCH;
+    if (stk->right_snitch != snitch_value) error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    if (stk->capacity < 0)                 error_bitmask |= 1 << NEGATIVE_CAPACITY;
+    if (stk->size     < 0)                 error_bitmask |= 1 << NEGATIVE_SIZE;
+    if (stk->size     > stk->capacity)     error_bitmask |= 1 << WRONG_SIZE;
+
+    return error_bitmask;
 }
 
 stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
@@ -265,9 +337,9 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity) // BAH: 
             stk->size = 0;
             stk->capacity = capacity;
             fill_data_with_poison(stk->data, stk->capacity);
-            stack_error_code err_code = validate_stack(stk);
+            // stack_error_code err_code = validate_stack(stk);
 
-            return err_code;
+            // return err_code;
         }
 
         return NULL_DATA;
