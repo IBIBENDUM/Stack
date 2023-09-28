@@ -11,6 +11,7 @@
 #define TAB "    " // Because \t is too big
 
 const size_t BYTE_ALIGN = 8;
+// BAH: 0) Make other header for debug info
 // BAH: 1) Make log file
 // BAH: 2) Make log file in html
 // use minimum of html tag for better eye read
@@ -20,8 +21,18 @@ const size_t BYTE_ALIGN = 8;
         do {\
             printf(FORMAT, ##__VA_ARGS__); /* BAH: "##" because of empty __VA_ARGS__*/ \
         } while (0)
+
+    #define DUMP_STACK(FILE_PTR, STK)\
+        do {\
+            struct dump_info INFO = { .file_name = __FILE__, \
+                                     .line = __LINE__,\
+                                     .func_name = __PRETTY_FUNCTION__\
+                                    };\
+            dump_stack(FILE_PTR, STK, &INFO);\
+        } while(0)
 #else
     #define DEBUG_MSG(FORMAT, ...)
+    #define DUMP_STACK(FILE_PTR, STK)
 #endif
 
 #define FREE_AND_NULL(PTR)\
@@ -32,37 +43,48 @@ const size_t BYTE_ALIGN = 8;
 
 #define RETURN_ERR_IF_STK_WRONG(PTR)\
     do {\
-        unsigned error_bitmask = validate_stack(PTR);\
-        if (error_bitmask)\
+        unsigned ERROR_BITMASK = validate_stack(PTR);\
+        if (ERROR_BITMASK)\
         {\
-            printf("Error occurred:\n");\
-            print_errors(error_bitmask);\
-            DUMP_STACK(PTR, stdout);\
+            DEBUG_MSG("Error occurred:\n");\
+            print_errors(ERROR_BITMASK);\
+            DUMP_STACK(stdout, PTR);\
             assert(0);\
-            /* return error_bitmask; */ \
+            return ERROR_BITMASK;\
         }\
     } while(0)
 
-#define DUMP_STACK(STK, FILE_PTR)\
-    do {\
-        struct dump_info INFO = { .file_name = __FILE__, \
-                                  .line = __LINE__,\
-                                  .func_name = __PRETTY_FUNCTION__\
-                                };\
-        dump_stack(STK, FILE_PTR, &INFO);\
-    } while(0)
-
-#define INIT_STACK(STK, CAPACITY)\
+const ssize_t DEFAULT_STACK_SIZE = 10;
+#define init_stack_with_capacity(STK, CAPACITY)\
     do {\
         struct initialize_info INFO = { .var_name = #STK,\
                                         .file_name = __FILE__,\
                                         .line = __LINE__,\
                                         .func_name = __PRETTY_FUNCTION__\
                                       };\
-        init_stack_with_capacity(&STK, CAPACITY, &INFO);\
+        (init_stack_with_capacity)(&STK, CAPACITY, &INFO);\
     } while(0)
 
-const ssize_t DEFAULT_STACK_SIZE = 8; // BAH: Make align to 8 bytes
+#define init_stack(STK)\
+    do {\
+        struct initialize_info INFO = { .var_name = #STK,\
+                                        .file_name = __FILE__,\
+                                        .line = __LINE__,\
+                                        .func_name = __PRETTY_FUNCTION__\
+                                      };\
+        (init_stack_with_capacity)(&STK, DEFAULT_STACK_SIZE, &INFO);\
+    } while(0)
+
+#define write_stack_log(STK)\
+    do {\
+        unsigned ERROR_BITMASK = validate_stack(STK);\
+        struct dump_info INFO = {       .file_name = __FILE__,\
+                                        .line = __LINE__,\
+                                        .func_name = __PRETTY_FUNCTION__\
+                                      };\
+        (write_stack_log)(STK, ERROR_BITMASK, &INFO);\
+    } while(0)
+
 const int POISON_VALUE = INT_MAX;
 
 #define STACK_ERRORS\
@@ -114,13 +136,13 @@ typedef VALUE_TYPE elem_t;
 #endif
 
 
-unsigned get_hash(const void* key, size_t len)
+static unsigned get_hash(const void* key, size_t len)
 {
     assert(key);
     assert(len > 0);
 
     const unsigned seed = 0xACAB1337;
-    const unsigned MULTIPLY_VAL = 0xDED1DEAD;   // DED != DEAD
+    const unsigned MULTIPLY_VAL = 0xDED1DEAD;   // DED NOT DEAD
     const int ROTATE_VAL = 24;
     unsigned hash = seed ^ len;
 
@@ -171,16 +193,16 @@ typedef struct STACK
     unsigned long long right_snitch = SNITCH_VALUE;
 } stack;
 
-void print_errors(const unsigned val)
+static void print_errors(const unsigned error_bitmask)
 {
-    for (size_t i = 0; i < sizeof(val) * 8; i++)
+    for (size_t i = 0; i < sizeof(error_bitmask) * 8; i++)
     {
-        if (val & (1 << i))
+        if (error_bitmask & (1 << i))
         {
             switch (i)
             {
                 #define INIT_ERROR(ERR_NAME)\
-                    case ERR_NAME: printf("%s\n", #ERR_NAME); break;
+                    case ERR_NAME: DEBUG_MSG("%s\n", #ERR_NAME); break;
                     STACK_ERRORS
                 #undef INIT_ERROR
                 #undef STACK_ERRORS
@@ -190,7 +212,7 @@ void print_errors(const unsigned val)
     }
 }
 
-unsigned get_stack_hash(stack* stk)
+static unsigned get_stack_hash(stack* stk)
 {
     unsigned old_struct_hash = stk->struct_hash;
     stk->struct_hash = 0;
@@ -232,7 +254,7 @@ static unsigned validate_stack(stack* stk)
     return error_bitmask;
 }
 
-stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
+stack_error_code dump_stack(FILE* file_ptr, stack* stk, struct dump_info* info)
 {
     assert(file_ptr);
     assert(info->file_name);
@@ -288,7 +310,38 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
     return NO_ERROR;
 }
 
-void paste_snitch_value(void* data_void)
+static const char* get_log_file_name()
+{
+    static char file_name[128] = {};
+
+    time_t current_time = time(0);
+    struct tm* tm_info = localtime(&current_time);
+
+    strftime(file_name, sizeof(file_name), "stack_log_%H_%M_%S.txt", tm_info);
+    return file_name;
+}
+
+// Open file every log, because somebody could delete log file and program will be broke
+bool (write_stack_log)(stack* stk, unsigned error_bitmask, struct dump_info* info)
+{
+    FILE* file_ptr = fopen(get_log_file_name(), "a+b");
+    if (!file_ptr)
+    {
+        DEBUG_MSG("[stack.h] write_stack_log(): Error at file open\n");
+        return true;
+    }
+    dump_stack(file_ptr, stk, info);
+    print_errors(error_bitmask);
+
+    if (fclose(file_ptr))
+    {
+        DEBUG_MSG("[stack.h] write_stack_log(): Error at file closing\n");
+        return true;
+    }
+    return false;
+}
+
+static void paste_snitch_value(void* data_void)
 {
     long long* data = (long long*) data_void;
     data[0] = SNITCH_VALUE;
@@ -335,7 +388,7 @@ static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
     return NO_ERROR;
 }
 
-void update_stack_hash(stack* stk)
+static void update_stack_hash(stack* stk)
 {
     assert(stk);
 
@@ -415,13 +468,13 @@ unsigned pop_stack(stack* stk, elem_t* const value)
     return 0 | 1 << NULL_VALUE_PTR;
 }
 
-ssize_t align_capacity(const ssize_t capacity)
+static ssize_t align_capacity(const ssize_t capacity)
 {
     size_t bytes_count = capacity * sizeof(elem_t);
     return (bytes_count + BYTE_ALIGN - bytes_count % BYTE_ALIGN) / sizeof(elem_t);
 }
 
-stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct initialize_info* info)
+stack_error_code (init_stack_with_capacity)(stack* stk, ssize_t capacity, struct initialize_info* info)
 {
     assert(info);
     assert(info->var_name);
@@ -463,17 +516,6 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct i
 
     return NULL_STACK_POINTER;
 }
-
-// stack_error_code init_stack(stack* stk)
-// {
-//     if (stk)
-//     {
-//         init_stack_with_capacity(stk, DEFAULT_STACK_SIZE);
-//         return NO_ERROR;
-//     }
-//
-//     return NULL_STACK_POINTER;
-// }
 
 stack_error_code destruct_stack(stack* stk)
 {
