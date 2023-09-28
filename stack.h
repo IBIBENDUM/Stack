@@ -10,15 +10,11 @@
 
 #define TAB "    " // Because \t is too big
 
+const size_t BYTE_ALIGN = 8;
 const char* get_log_file_name();
 
-const char* log_file_name = get_log_file_name(); // make extern and init in .cpp
-
-const size_t BYTE_ALIGN = 8;
-// BAH: 0) Make other header for debug info
-// BAH: 1) Make log file
-// BAH: 2) Make log file in html
-// use minimum of html tag for better eye read
+FILE* log_file_ptr = NULL;
+const char* log_file_name = get_log_file_name();
 
 #ifdef DEBUG
     #define DEBUG_MSG(FORMAT, ...)\
@@ -26,17 +22,17 @@ const size_t BYTE_ALIGN = 8;
             printf(FORMAT, ##__VA_ARGS__); /* BAH: "##" because of empty __VA_ARGS__*/ \
         } while (0)
 
-    #define DUMP_STACK(FILE_PTR, STK)\
+    #define dump_stack(FILE_PTR, STK)\
         do {\
             struct dump_info INFO = { .file_name = __FILE__, \
                                      .line = __LINE__,\
                                      .func_name = __PRETTY_FUNCTION__\
                                     };\
-            dump_stack(FILE_PTR, STK, &INFO);\
+            (dump_stack)(FILE_PTR, STK, &INFO);\
         } while(0)
 #else
     #define DEBUG_MSG(FORMAT, ...)
-    #define DUMP_STACK(FILE_PTR, STK)
+    #define dump_stack(FILE_PTR, STK)
 #endif
 
 #define FREE_AND_NULL(PTR)\
@@ -52,7 +48,7 @@ const size_t BYTE_ALIGN = 8;
         {\
             DEBUG_MSG("Error occurred:\n");\
             print_errors(ERROR_BITMASK);\
-            DUMP_STACK(stdout, PTR);\
+            dump_stack(stdout, PTR);\
             assert(0);\
             return ERROR_BITMASK;\
         }\
@@ -255,31 +251,76 @@ static unsigned validate_stack(stack* stk)
     if (stk->size         < 0)                                       error_bitmask |= 1 << NEGATIVE_SIZE;
     if (stk->size         > stk->capacity)                           error_bitmask |= 1 << WRONG_SIZE;
 
-    #ifdef SNITCH
-    if (*((snitch_t*) stk->data - 1)
-        != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
-    if (*(snitch_t*)(stk->data + stk->capacity)
-        != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_RIGHT_DATA_SNITCH;
-    #endif
-
-    #ifdef HASH
     if (stk) // check hash only if other checks went correct
     {
-        if (stk->struct_hash  != get_stack_hash(stk))                error_bitmask |= 1 << WRONG_STRUCT_HASH;
-        if (stk->data_hash    != get_hash(stk->data,
-                              stk->capacity * sizeof(elem_t)))       error_bitmask |= 1 << WRONG_DATA_HASH;
+        #ifdef SNITCH
+        if (*((snitch_t*) stk->data - 1)
+            != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
+        if (*(snitch_t*)(stk->data + stk->capacity)
+            != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_RIGHT_DATA_SNITCH;
+        #endif
+
+        #ifdef HASH
+            if (stk->struct_hash  != get_stack_hash(stk))                error_bitmask |= 1 << WRONG_STRUCT_HASH;
+            if (stk->data_hash    != get_hash(stk->data,
+                                stk->capacity * sizeof(elem_t)))       error_bitmask |= 1 << WRONG_DATA_HASH;
+        #endif
     }
-    #endif
 
     return error_bitmask;
 }
 
-static void print_separator(FILE* file_ptr)
+void print_only_to_log(FILE* file_ptr, const char* string)
 {
-    fprintf(file_ptr, "==================================================================\n");
+    if (file_ptr == log_file_ptr)
+    {
+        fprintf(file_ptr, string);
+    }
 }
 
-stack_error_code dump_stack(FILE* file_ptr, stack* stk, struct dump_info* info)
+void print_only_to_console(FILE* file_ptr, const char* string)
+{
+    if (file_ptr == stdout)
+    {
+        fprintf(file_ptr, string);
+    }
+}
+
+void print_newline_char(FILE* file_ptr)
+{
+    print_only_to_log(file_ptr, "</br>");
+    putc('\n', file_ptr);
+}
+
+void print_tab_char(FILE* file_ptr)
+{
+    print_only_to_log(file_ptr, "&emsp;");
+    print_only_to_console(file_ptr, TAB);
+}
+
+static void print_separator(FILE* file_ptr)
+{
+    print_only_to_log(file_ptr, TAB);
+    print_newline_char(file_ptr);
+    print_only_to_log(file_ptr, TAB);
+    fprintf(file_ptr, "==================================================================");
+    print_newline_char(file_ptr);
+    print_only_to_log(file_ptr, TAB);
+    print_newline_char(file_ptr);
+}
+
+#include <stdarg.h>
+
+void fprintf_tab(FILE* file_ptr, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    print_only_to_log(file_ptr, TAB);
+    vfprintf(file_ptr, format, args);
+    va_end(args);
+}
+
+stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, struct dump_info* info)
 {
     assert(file_ptr);
     assert(info->file_name);
@@ -287,29 +328,57 @@ stack_error_code dump_stack(FILE* file_ptr, stack* stk, struct dump_info* info)
     assert(info->func_name);
 
     print_separator(file_ptr);
-    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
+
+    fprintf_tab(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s", stk, stk->init_info.var_name, stk->init_info.file_name,
                                                                               stk->init_info.line, stk->init_info.func_name);
-    fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
+    print_newline_char(file_ptr);
+    fprintf_tab(file_ptr, "called from %s(%d) %s", info->file_name, info->line, info->func_name);
+    print_newline_char(file_ptr);
 
     if(!stk)
         return NULL_STACK_POINTER;
 
     #ifdef SNITCH
-    fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch);
+    fprintf_tab(file_ptr, "struct_left_snitch = 0x%llX", stk->left_snitch);
+    print_newline_char(file_ptr);
     #endif
 
-    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
+    fprintf_tab(file_ptr, "{");
+    print_newline_char(file_ptr);
+    print_only_to_log(file_ptr, TAB);
+    print_tab_char(file_ptr);
+    fprintf(file_ptr, "size = %d", stk->size);
+    print_newline_char(file_ptr);
+    print_only_to_log(file_ptr, TAB);
+    print_tab_char(file_ptr);
+    fprintf(file_ptr, "capacity = %d", stk->capacity);
+    print_newline_char(file_ptr);
+    print_only_to_log(file_ptr, TAB);
+    print_tab_char(file_ptr);
+    fprintf(file_ptr, "data[0x%llX]", stk->data);
+    print_newline_char(file_ptr);
 
     if (stk->data)
     {
-        fprintf(file_ptr, TAB "{\n");
+        print_only_to_log(file_ptr, TAB);
+        print_tab_char(file_ptr);
+        fprintf(file_ptr, "{");
+        print_newline_char(file_ptr);
         #ifdef SNITCH
-        fprintf(file_ptr, TAB TAB "data_left_snitch = 0x%llX\n", *(snitch_t*)((char*)stk->data - sizeof(long long)));
+        print_only_to_log(file_ptr, TAB);
+        print_tab_char(file_ptr);
+        print_tab_char(file_ptr);
+        fprintf(file_ptr, "data_left_snitch = 0x%llX", *(snitch_t*)((char*)stk->data - sizeof(long long)));
+        print_newline_char(file_ptr);
         #endif
 
         if (stk->capacity < 1)
         {
-            fprintf(file_ptr, TAB TAB "NULL\n");
+            print_only_to_log(file_ptr, TAB);
+            print_tab_char(file_ptr);
+            print_tab_char(file_ptr);
+            fprintf(file_ptr, "NULL");
+            print_newline_char(file_ptr);
         }
 
         else
@@ -319,29 +388,49 @@ stack_error_code dump_stack(FILE* file_ptr, stack* stk, struct dump_info* info)
             {
                 while (i < stk->capacity && stk->data[i] != POISON_VALUE)
                 {
-                    fprintf(file_ptr, TAB TAB "*[%d] = " ELEM_FORMAT "\n", i, stk->data[i]);
+                    print_only_to_log(file_ptr, TAB);
+                    print_tab_char(file_ptr);
+                    print_tab_char(file_ptr);
+                    fprintf(file_ptr, "*[%d] = " ELEM_FORMAT, i, stk->data[i]);
+                    print_newline_char(file_ptr);
                     i++;
                 }
                 if (i < stk->capacity && stk->data[i - 1] != POISON_VALUE)
-                    fprintf(file_ptr, TAB TAB "... (POISON)\n");
+                {
+                    print_only_to_log(file_ptr, TAB);
+                    print_tab_char(file_ptr);
+                    print_tab_char(file_ptr);
+                    fprintf(file_ptr, "... (POISON)");
+                    print_newline_char(file_ptr);
+                }
             }
         }
         #ifdef SNITCH
-        fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(snitch_t*)(stk->data + stk->capacity));
+        print_only_to_log(file_ptr, TAB);
+        print_tab_char(file_ptr);
+        print_tab_char(file_ptr);
+        fprintf(file_ptr, "data_right_snitch = 0x%llX", *(snitch_t*)(stk->data + stk->capacity));
+        print_newline_char(file_ptr);
         #endif
 
-        fprintf(file_ptr, TAB "}\n");
-
+        print_only_to_log(file_ptr, TAB);
+        print_tab_char(file_ptr);
+        fprintf(file_ptr, "}");
+        print_newline_char(file_ptr);
     }
 
-    fprintf(file_ptr, "}\n");
+    fprintf_tab(file_ptr, "}");
+    print_newline_char(file_ptr);
     #ifdef SNITCH
-    fprintf(file_ptr, "struct_right_snitch = 0x%llX\n", stk->right_snitch);
+    fprintf_tab(file_ptr, "struct_right_snitch = 0x%llX", stk->right_snitch);
+    print_newline_char(file_ptr);
     #endif
 
     #ifdef HASH
-    fprintf(file_ptr, "struct_hash = 0x%llX\n", stk->struct_hash);
-    fprintf(file_ptr, "data_hash = 0x%llX\n", stk->data_hash);
+    fprintf_tab(file_ptr, "struct_hash = 0x%llX", stk->struct_hash);
+    print_newline_char(file_ptr);
+    fprintf_tab(file_ptr, "data_hash = 0x%llX", stk->data_hash);
+    print_newline_char(file_ptr);
     #endif
 
     print_separator(file_ptr);
@@ -539,10 +628,8 @@ stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
             stk->data_hash = get_hash(stk->data, capacity * sizeof(elem_t));
             #endif
         }
-
         return NULL_DATA;
     }
-
     return NULL_STACK_POINTER;
 }
 
@@ -595,63 +682,58 @@ const char* get_log_file_name()
     return file_name;
 }
 
-// Open file every log, because somebody could delete log file and program will be broke
-// bool (write_stack_log)(stack* stk, unsigned error_bitmask, struct dump_info* info)
-// {
-//     FILE* file_ptr = fopen(get_log_file_name(), "a+b");
-//     if (!file_ptr)
-//     {
-//         DEBUG_MSG("[stack.h] write_stack_log(): Error at file open\n");
-//         return true;
-//     }
-//
-//     dump_stack(file_ptr, stk, info);
-//     print_errors(error_bitmask);
-//
-//     if (fclose(file_ptr))
-//     {
-//         DEBUG_MSG("[stack.h] write_stack_log(): Error at file closing\n");
-//         return true;
-//     }
-//     return false;
-// }
-
-#define WRITE_TO_FILE_WRAPPER(...)\
-    do{\
-        FILE* file_ptr = fopen(log_file_name, "a+b");\
-        if (!file_ptr)\
-        {\
-            DEBUG_MSG("[%s] %s: Error at file open\n", __FILE__, __PRETTY_FUNCTION__);\
-            return NULL;\
-        }\
-        __VA_ARGS__\
-        if (fclose(file_ptr))\
-        {\
-            DEBUG_MSG("[%s] %s: Error at file closing\n", __FILE__, __PRETTY_FUNCTION__);\
-            return true;\
-        }\
-        return false;\
-    }while(0)
-
-// bool print_stack_log(stack* stk)
-// {
-//     WRITE_TO_FILE_WRAPPER(
-//     fprintf(file_ptr, "<html>\n\t<body>\n"););
-// }
+void log_stack_to_html(stack* stk)
+{
+    printf("stk_ptr = %p\n", stk);
+    unsigned error_bitmask = validate_stack(stk);
+    printf("stk_ptr = %p\n", stk);
+    if (error_bitmask)
+    {
+        fprintf(log_file_ptr, "\t<font color = #FF0000 size = 4>\n");
+        dump_stack(log_file_ptr, stk);
+        fprintf(log_file_ptr, "\t</font>\n");
+    }
+    else
+    {
+        fprintf(log_file_ptr, "\t<font color = #BBBBBB size = 1>\n");
+        dump_stack(log_file_ptr, stk);
+        fprintf(log_file_ptr, "\t</font>\n");
+    }
+}
 
 bool open_html()
 {
-    WRITE_TO_FILE_WRAPPER(
-    fprintf(file_ptr, "<html>\n\t<body>\n");
-    );
+    if (!log_file_name)
+        return true;
+
+    log_file_ptr = fopen(log_file_name, "a");
+    if (!log_file_ptr)
+    {
+        DEBUG_MSG("[%s] %s: Error at file open\n", __FILE__, __PRETTY_FUNCTION__);
+        return true;
+    }
+    fprintf(log_file_ptr, "<!DOCTYPE html>\n");
+    fprintf(log_file_ptr, "<html>\n<body>\n");
+
+    return false;
 }
 
 
-bool close_html(void)
+bool close_html()
 {
-    WRITE_TO_FILE_WRAPPER(
-    fprintf(file_ptr, "\t</body>\n</html>\n");
-    );
+    if (!log_file_ptr)
+        return true;
+
+    fprintf(log_file_ptr, "</body>\n</html>\n");
+
+    if (fclose(log_file_ptr))
+    {
+        DEBUG_MSG("[%s] %s: Error at file closing\n", __FILE__, __PRETTY_FUNCTION__);
+        return true;
+    }
+    log_file_ptr = NULL;
+
+    return false;
 }
 
 #endif
