@@ -8,14 +8,15 @@
 // #undef ELEM_FORMAT
 // #undef POISON_VAL
 
+
 int main()
 {
     stack stk;
     stack* stk_ptr = &stk;
 
-    FILE* log_ptr = open_html(get_log_file_name());
-    if (log_ptr)
-    close_html(log_ptr);
+    open_html();
+    // print_stack_log();
+    close_html();
     init_stack(stk);
     DEBUG_MSG("INIT_STACK(stk, 0);\n");
     DUMP_STACK(stdout, stk_ptr);

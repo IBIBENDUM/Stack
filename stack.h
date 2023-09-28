@@ -10,6 +10,10 @@
 
 #define TAB "    " // Because \t is too big
 
+const char* get_log_file_name();
+
+const char* log_file_name = get_log_file_name(); // make extern and init in .cpp
+
 const size_t BYTE_ALIGN = 8;
 // BAH: 0) Make other header for debug info
 // BAH: 1) Make log file
@@ -612,33 +616,42 @@ const char* get_log_file_name()
 //     return false;
 // }
 
-FILE* open_html(const char* file_name)
+#define WRITE_TO_FILE_WRAPPER(...)\
+    do{\
+        FILE* file_ptr = fopen(log_file_name, "a+b");\
+        if (!file_ptr)\
+        {\
+            DEBUG_MSG("[%s] %s: Error at file open\n", __FILE__, __PRETTY_FUNCTION__);\
+            return NULL;\
+        }\
+        __VA_ARGS__\
+        if (fclose(file_ptr))\
+        {\
+            DEBUG_MSG("[%s] %s: Error at file closing\n", __FILE__, __PRETTY_FUNCTION__);\
+            return true;\
+        }\
+        return false;\
+    }while(0)
+
+// bool print_stack_log(stack* stk)
+// {
+//     WRITE_TO_FILE_WRAPPER(
+//     fprintf(file_ptr, "<html>\n\t<body>\n"););
+// }
+
+bool open_html()
 {
-    FILE* file_ptr = fopen(file_name, "a+b");
-    if (!file_ptr)
-    {
-        DEBUG_MSG("[%s] %s: Error at file open\n", __FILE__, __PRETTY_FUNCTION__);
-        return NULL;
-    }
-
+    WRITE_TO_FILE_WRAPPER(
     fprintf(file_ptr, "<html>\n\t<body>\n");
-
-    return file_ptr;
+    );
 }
 
 
-bool close_html(FILE* file_ptr)
+bool close_html(void)
 {
-    if (!file_ptr)
-        return 1;
-
+    WRITE_TO_FILE_WRAPPER(
     fprintf(file_ptr, "\t</body>\n</html>\n");
-    if (fclose(file_ptr))
-    {
-        DEBUG_MSG("[%s] %s: Error at file closing\n", __FILE__, __PRETTY_FUNCTION__);
-        return true;
-    }
-    return false;
+    );
 }
 
 #endif
