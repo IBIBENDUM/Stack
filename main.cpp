@@ -25,8 +25,10 @@ int main()
     DEBUG_MSG("push_stack(stk_ptr, 4);\n");
     DUMP_STACK(stk_ptr, stdout);
 
-    // for (size_t i = 0; i < sizeof(stk); i++)
-    //     ((char*) stk_ptr)[i] = 0;
+    // for (size_t i = 0; i < sizeof(stack); i++)
+    // {
+    //     *((char*) &stk + i) = 0;
+    // }
 
     push_stack(stk_ptr, 5);
     DEBUG_MSG("push_stack(stk_ptr, 5);\n");
@@ -36,19 +38,19 @@ int main()
     DEBUG_MSG("push_stack(stk_ptr, 6);\n");
     DUMP_STACK(stk_ptr, stdout);
 
-//     elem_t value = 0;
-//     pop_stack(stk_ptr, &value);
-//     DUMP_STACK(stk_ptr, stdout);
-//     pop_stack(stk_ptr, &value);
-//     DUMP_STACK(stk_ptr, stdout);
-//     pop_stack(stk_ptr, &value);
-//     DUMP_STACK(stk_ptr, stdout);
-//     pop_stack(stk_ptr, &value);
-//     DUMP_STACK(stk_ptr, stdout);
-//     pop_stack(stk_ptr, &value);
-    // DUMP_STACK(stk_ptr, stdout);
+    elem_t value = 0;
+    pop_stack(stk_ptr, &value);
+    DUMP_STACK(stk_ptr, stdout);
+    pop_stack(stk_ptr, &value);
+    DUMP_STACK(stk_ptr, stdout);
+    pop_stack(stk_ptr, &value);
+    DUMP_STACK(stk_ptr, stdout);
+    pop_stack(stk_ptr, &value);
+    DUMP_STACK(stk_ptr, stdout);
+    pop_stack(stk_ptr, &value);
+    DUMP_STACK(stk_ptr, stdout);
 
     destruct_stack(stk_ptr);
-    // DUMP_STACK(stk_ptr, stdout);
+    DUMP_STACK(stk_ptr, stdout);
 
 }

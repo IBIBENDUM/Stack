@@ -6,6 +6,7 @@
 #include <string.h>
 #include <limits.h>
 #include <assert.h>
+#include <time.h>
 
 #define TAB "    " // Because \t is too big
 
@@ -71,7 +72,10 @@ const int POISON_VALUE = INT_MAX;
   INIT_ERROR(NULL_NEW_DATA)\
   INIT_ERROR(DEAD_LEFT_SNITCH)\
   INIT_ERROR(DEAD_RIGHT_SNITCH)\
+  INIT_ERROR(WRONG_STRUCT_HASH)\
+  INIT_ERROR(WRONG_DATA_HASH)\
   INIT_ERROR(DEAD_LEFT_DATA_SNITCH)\
+  INIT_ERROR(DEAD_RIGHT_DATA_SNITCH)\
   INIT_ERROR(NEGATIVE_CAPACITY)\
   INIT_ERROR(NEGATIVE_SIZE)\
   INIT_ERROR(WRONG_SIZE)\
@@ -109,7 +113,52 @@ typedef VALUE_TYPE elem_t;
 #define ELEM_FORMAT "%d"
 #endif
 
-const unsigned long long SNITCH_VALUE = 0x4BADC0DEDA551337;
+
+unsigned get_hash(const void* key, size_t len)
+{
+    assert(key);
+    assert(len > 0);
+
+    const unsigned seed = 0xACAB1337;
+    const unsigned MULTIPLY_VAL = 0xDED1DEAD;   // DED != DEAD
+    const int ROTATE_VAL = 24;
+    unsigned hash = seed ^ len;
+
+    const unsigned char* data = (const unsigned char *) key;
+
+    const size_t BYTES_IN_CHUNK = 4;
+    while(len >= BYTES_IN_CHUNK)
+    {
+        unsigned chunk = *(unsigned*)data;
+
+        chunk *= MULTIPLY_VAL;
+        chunk ^= chunk >> ROTATE_VAL;
+        chunk *= MULTIPLY_VAL;
+
+        hash *= MULTIPLY_VAL;
+        hash ^= chunk;
+
+        data += BYTES_IN_CHUNK;
+        len -= BYTES_IN_CHUNK;
+    }
+
+    switch(len)
+    {
+        case  3:  hash ^= data[2] << 16;
+        case  2:  hash ^= data[1] <<  8;
+        case  1:  hash ^= data[0];
+        default:  hash *= MULTIPLY_VAL;
+    };
+
+    hash ^= hash >> 13;
+    hash *= MULTIPLY_VAL;
+    hash ^= hash >> 15;
+
+    return hash;
+}
+
+const unsigned long long SNITCH_VALUE = 0xABADC0DEDA551337;     // A BAD CODED ASS 1337
+
 typedef struct STACK
 {
     unsigned long long left_snitch = SNITCH_VALUE;
@@ -117,10 +166,12 @@ typedef struct STACK
     elem_t* data;
     ssize_t size;
     ssize_t capacity;
+    unsigned struct_hash;
+    unsigned data_hash;
     unsigned long long right_snitch = SNITCH_VALUE;
 } stack;
 
-void print_errors(unsigned val)
+void print_errors(const unsigned val)
 {
     for (size_t i = 0; i < sizeof(val) * 8; i++)
     {
@@ -139,19 +190,44 @@ void print_errors(unsigned val)
     }
 }
 
+unsigned get_stack_hash(stack* stk)
+{
+    unsigned old_struct_hash = stk->struct_hash;
+    stk->struct_hash = 0;
+
+    unsigned old_data_hash = stk->data_hash;
+    stk->data_hash = 0;
+
+    unsigned new_struct_hash = get_hash(stk, sizeof(stack));
+
+    stk->struct_hash = old_struct_hash;
+    stk->data_hash = old_data_hash;
+
+    return new_struct_hash;
+}
+
 static unsigned validate_stack(stack* stk)
 {
     unsigned error_bitmask = 0;
 
-    if (!stk)                              error_bitmask |= 1 << NULL_STACK_POINTER;
-    if (!stk->data)                        error_bitmask |= 1 << NULL_DATA;
-    if (stk->left_snitch  != SNITCH_VALUE) error_bitmask |= 1 << DEAD_LEFT_SNITCH;
-    if (stk->right_snitch != SNITCH_VALUE) error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    if (!stk)                                                        error_bitmask |= 1 << NULL_STACK_POINTER;
+    if (!stk->data)                                                  error_bitmask |= 1 << NULL_DATA;
+    if (stk->left_snitch  != SNITCH_VALUE)                           error_bitmask |= 1 << DEAD_LEFT_SNITCH;
+    if (stk->right_snitch != SNITCH_VALUE)                           error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    if (stk->capacity     < 0)                                       error_bitmask |= 1 << NEGATIVE_CAPACITY;
+    if (stk->size         < 0)                                       error_bitmask |= 1 << NEGATIVE_SIZE;
+    if (stk->size         > stk->capacity)                           error_bitmask |= 1 << WRONG_SIZE;
     if (*((long long*) stk->data - 1)
-        != SNITCH_VALUE)                   error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
-    if (stk->capacity < 0)                 error_bitmask |= 1 << NEGATIVE_CAPACITY;
-    if (stk->size     < 0)                 error_bitmask |= 1 << NEGATIVE_SIZE;
-    if (stk->size     > stk->capacity)     error_bitmask |= 1 << WRONG_SIZE;
+        != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
+    if (*(long long*)(stk->data + stk->capacity)
+        != SNITCH_VALUE)                                             error_bitmask |= 1 << DEAD_RIGHT_DATA_SNITCH;
+
+    if (stk) // check hash only if other checks went correct
+    {
+        if (stk->struct_hash  != get_stack_hash(stk))                error_bitmask |= 1 << WRONG_STRUCT_HASH;
+        if (stk->data_hash    != get_hash(stk->data,
+                              stk->capacity * sizeof(elem_t)))       error_bitmask |= 1 << WRONG_DATA_HASH;
+    }
 
     return error_bitmask;
 }
@@ -170,12 +246,13 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
     if(!stk)
         return NULL_STACK_POINTER;
 
+    fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch);
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
 
-    fprintf(file_ptr, TAB "{\n");
 
     if (stk->data)
     {
+        fprintf(file_ptr, TAB "{\n");
         fprintf(file_ptr, TAB TAB "data_left_snitch = 0x%llX\n", *(unsigned long long*)((char*)stk->data - sizeof(long long)));
         if (stk->capacity < 1)
         {
@@ -199,12 +276,16 @@ stack_error_code dump_stack(stack* stk, FILE* file_ptr, struct dump_info* info)
         fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(unsigned long long*)(stk->data + stk->capacity));
 
         fprintf(file_ptr, TAB "}\n");
-        fprintf(file_ptr, "}\n");
 
-        return NO_ERROR;
     }
 
-    return NULL_DATA;
+    fprintf(file_ptr, "}\n");
+    fprintf(file_ptr, "struct_right_snitch = 0x%llX\n", stk->right_snitch);
+    fprintf(file_ptr, "struct_hash = 0x%llX\n", stk->struct_hash);
+    fprintf(file_ptr, "data_hash = 0x%llX\n", stk->data_hash);
+
+    if (!stk->data) return NULL_DATA;
+    return NO_ERROR;
 }
 
 void paste_snitch_value(void* data_void)
@@ -254,6 +335,14 @@ static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
     return NO_ERROR;
 }
 
+void update_stack_hash(stack* stk)
+{
+    assert(stk);
+
+    stk->struct_hash = get_stack_hash(stk);
+    stk->data_hash   = get_hash(stk->data, stk->capacity * sizeof(elem_t));
+}
+
 static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
 {
     if (!stk)
@@ -266,9 +355,6 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     *(long long*)(stk->data + stk->capacity) = 0;
     elem_t* new_data = (elem_t*) realloc((char*)stk->data - sizeof(long long), new_capacity * sizeof(new_data[0]) + 2 * sizeof(long long));
 
-
-    // elem_t* data = (elem_t*) calloc(capacity + 2 * sizeof(long long) / sizeof(data[0]), sizeof(data[0]));
-
     if (new_data)
     {
         elem_t* data_ptr = new_data + sizeof(long long) / sizeof(new_data[0]);
@@ -277,13 +363,15 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         stk->capacity = new_capacity;
         paste_snitch_value(stk->data + stk->capacity);
 
+        update_stack_hash(stk);
+
         return NO_ERROR;
     }
 
     return NULL_NEW_DATA;
 }
 
-stack_error_code push_stack(stack* stk, const elem_t value)
+unsigned push_stack(stack* stk, const elem_t value)
 {
     RETURN_ERR_IF_STK_WRONG(stk);
 
@@ -293,13 +381,15 @@ stack_error_code push_stack(stack* stk, const elem_t value)
     calculate_new_capacity(stk, &new_capacity);
     if (new_capacity)
     {
-        return realloc_stack(stk, new_capacity);
+        return 0 | 1 << realloc_stack(stk, new_capacity);
     }
 
-    return NO_ERROR;
+    update_stack_hash(stk);
+
+    return 0 | 1 << NO_ERROR;
 }
 
-stack_error_code pop_stack(stack* stk, elem_t* const value)
+unsigned pop_stack(stack* stk, elem_t* const value)
 {
     RETURN_ERR_IF_STK_WRONG(stk);
 
@@ -315,22 +405,21 @@ stack_error_code pop_stack(stack* stk, elem_t* const value)
             {
                 return realloc_stack(stk, new_capacity);
             }
+
+            update_stack_hash(stk);
         }
 
-        return ANTI_OVERFLOW;
+        return 0 | 1 << ANTI_OVERFLOW;
     }
 
-    return NULL_VALUE_PTR;
+    return 0 | 1 << NULL_VALUE_PTR;
 }
 
 ssize_t align_capacity(const ssize_t capacity)
 {
     size_t bytes_count = capacity * sizeof(elem_t);
     return (bytes_count + BYTE_ALIGN - bytes_count % BYTE_ALIGN) / sizeof(elem_t);
-    // return bytes_count / BYTE_ALIGN + 1;
 }
-
-// void paste_snitch_value_to_data(elem_t*
 
 stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct initialize_info* info)
 {
@@ -347,21 +436,26 @@ stack_error_code init_stack_with_capacity(stack* stk, ssize_t capacity, struct i
 
         capacity = align_capacity(capacity);
 
-        elem_t* data = (elem_t*) calloc(capacity + 2 * sizeof(long long) / sizeof(data[0]), sizeof(data[0]));
+        const size_t data_size_in_bytes = capacity + 2 * sizeof(long long) / sizeof(elem_t);
+        elem_t* data = (elem_t*) calloc(data_size_in_bytes, sizeof(data[0]));
         if (data)
         {
-            stk->data = (elem_t*) ((char*)data + sizeof(long long));
-            stk->size = 0;
+            stk->data     = (elem_t*) ((char*)data + sizeof(long long));
+            stk->size     = 0;
             stk->capacity = capacity;
+
 
             paste_snitch_value(data);
             paste_snitch_value(stk->data + capacity);
             fill_data_with_poison(stk->data, stk->capacity);
 
-            stk->init_info.var_name = info->var_name;
+            stk->init_info.var_name  = info->var_name;
             stk->init_info.file_name = info->file_name;
-            stk->init_info.line = info->line;
+            stk->init_info.line      = info->line;
             stk->init_info.func_name = info->func_name;
+
+            stk->struct_hash = get_stack_hash(stk);
+            stk->data_hash = get_hash(stk->data, capacity * sizeof(elem_t));
         }
 
         return NULL_DATA;
@@ -385,13 +479,19 @@ stack_error_code destruct_stack(stack* stk)
 {
     if (stk)
     {
-        elem_t* data_ptr = (elem_t*)((char*)stk->data - sizeof(long long));
-        fill_data_with_poison(data_ptr, stk->capacity);
-        FREE_AND_NULL(data_ptr);
-
-        return NO_ERROR;
+        if (stk->data)
+        {
+            elem_t* data_ptr = (elem_t*)((char*)stk->data - sizeof(long long));
+            if (stk->capacity > 0)
+            {
+                fill_data_with_poison(data_ptr, stk->capacity);
+                FREE_AND_NULL(data_ptr);
+                return NO_ERROR;
+            }
+            return NEGATIVE_CAPACITY;
+        }
+        return NULL_DATA;
     }
-
     return NULL_STACK_POINTER;
 }
 
