@@ -13,7 +13,6 @@ int main()
     stack stk;
     stack* stk_ptr = &stk;
 
-    open_html();
 
     init_stack(stk);
     DEBUG_MSG("INIT_STACK(stk, 0);\n");
@@ -29,15 +28,16 @@ int main()
     DEBUG_MSG("push_stack(stk_ptr, 4);\n");
     dump_stack(stdout, stk_ptr);
 
-    for (size_t i = 0; i < sizeof(stack); i++)
+    for (size_t i = 8; i < sizeof(stack); i++)
     {
+        dump_stack(stdout, stk_ptr);
+        // log_stack_to_html(stk_ptr);
         *((char*) stk_ptr + i) = 0;
+        close_html();
     }
 
     DEBUG_MSG("ABOBA\n");
 
-    log_stack_to_html(stk_ptr);
-    close_html();
 
     push_stack(stk_ptr, 65);
     DEBUG_MSG("push_stack(stk_ptr, 5);\n");

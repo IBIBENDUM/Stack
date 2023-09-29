@@ -1,8 +1,8 @@
 #ifndef STACK_H
 #define STACK_H
 
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <limits.h>
 #include <assert.h>
@@ -240,6 +240,9 @@ static unsigned validate_stack(stack* stk)
     unsigned error_bitmask = 0;
 
     if (!stk)                                                        error_bitmask |= 1 << NULL_STACK_POINTER;
+    #ifdef HASH
+        if (stk->struct_hash  != get_stack_hash(stk))                error_bitmask |= 1 << WRONG_STRUCT_HASH;
+    #endif2
     if (!stk->data)                                                  error_bitmask |= 1 << NULL_DATA;
 
     #ifdef SNITCH
@@ -261,7 +264,6 @@ static unsigned validate_stack(stack* stk)
         #endif
 
         #ifdef HASH
-            if (stk->struct_hash  != get_stack_hash(stk))                error_bitmask |= 1 << WRONG_STRUCT_HASH;
             if (stk->data_hash    != get_hash(stk->data,
                                 stk->capacity * sizeof(elem_t)))       error_bitmask |= 1 << WRONG_DATA_HASH;
         #endif
@@ -682,25 +684,6 @@ const char* get_log_file_name()
     return file_name;
 }
 
-void log_stack_to_html(stack* stk)
-{
-    printf("stk_ptr = %p\n", stk);
-    unsigned error_bitmask = validate_stack(stk);
-    printf("stk_ptr = %p\n", stk);
-    if (error_bitmask)
-    {
-        fprintf(log_file_ptr, "\t<font color = #FF0000 size = 4>\n");
-        dump_stack(log_file_ptr, stk);
-        fprintf(log_file_ptr, "\t</font>\n");
-    }
-    else
-    {
-        fprintf(log_file_ptr, "\t<font color = #BBBBBB size = 1>\n");
-        dump_stack(log_file_ptr, stk);
-        fprintf(log_file_ptr, "\t</font>\n");
-    }
-}
-
 bool open_html()
 {
     if (!log_file_name)
@@ -718,6 +701,25 @@ bool open_html()
     return false;
 }
 
+void log_stack_to_html(stack* stk)
+{
+    if (!log_file_ptr)
+        open_html();
+
+    unsigned error_bitmask = validate_stack(stk);
+    if (error_bitmask)
+    {
+        fprintf(log_file_ptr, "\t<font color = #FF0000 size = 4>\n");
+        dump_stack(log_file_ptr, stk);
+        fprintf(log_file_ptr, "\t</font>\n");
+    }
+    else
+    {
+        fprintf(log_file_ptr, "\t<font color = #BBBBBB size = 1>\n");
+        dump_stack(log_file_ptr, stk);
+        fprintf(log_file_ptr, "\t</font>\n");
+    }
+}
 
 bool close_html()
 {
