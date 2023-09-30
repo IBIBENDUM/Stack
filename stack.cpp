@@ -11,9 +11,9 @@
 const size_t BYTE_ALIGN = 8;
 const size_t STACK_CAPACITY_MULTIPLIER = 2;
 const ssize_t DEFAULT_STACK_SIZE = 1;
+const ssize_t FILE_NAME_SIZE = 128;
 
 static const char* get_log_file_name();
-
 
 FILE* log_file_ptr = NULL;
 const char* log_file_name = get_log_file_name();
@@ -24,7 +24,6 @@ const char* log_file_name = get_log_file_name();
         PTR = NULL;\
     } while(0)
 
-// ...
 #define RETURN_ERR_IF_STK_WRONG(STK)\
     do {\
         unsigned ERROR_BITMASK = validate_stack(STK);\
@@ -47,7 +46,6 @@ const char* log_file_name = get_log_file_name();
         (write_stack_log)(STK, ERROR_BITMASK, &INFO);\
     } while(0)
 
-#ifdef HASH
 static unsigned get_hash(const void* key, size_t len)
 {
     assert(key);
@@ -90,11 +88,10 @@ static unsigned get_hash(const void* key, size_t len)
 
     return hash;
 }
-#endif
 
 static void print_errors(FILE* file_ptr, const unsigned error_bitmask)
 {
-    for (size_t i = 0; i < sizeof(error_bitmask) * 8; i++)
+    for (size_t i = 0; i < sizeof(error_bitmask) * BYTE_ALIGN; i++)
     {
         if (error_bitmask & (1 << i))
         {
@@ -138,6 +135,28 @@ static unsigned validate_stack(stack* stk)
         error_bitmask |= 1 << NULL_STACK_POINTER;
         return error_bitmask;
     }
+
+    if (stk->capacity     < 0)
+        error_bitmask |= 1 << NEGATIVE_CAPACITY;
+
+    if (stk->size         < 0)
+        error_bitmask |= 1 << NEGATIVE_SIZE;
+
+    if (stk->size         > stk->capacity)
+        error_bitmask |= 1 << WRONG_SIZE;
+
+    if (!stk->data)
+        error_bitmask |= 1 << NULL_DATA;
+
+    IF_SNITCH_ON
+    (
+        if (stk->left_snitch  != SNITCH_VALUE)
+            error_bitmask |= 1 << DEAD_LEFT_SNITCH;
+
+        if (stk->right_snitch != SNITCH_VALUE)
+            error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
+    )
+
     IF_HASH_ON
     (
         if (stk->struct_hash  != get_stack_hash(stk))
@@ -152,27 +171,6 @@ static unsigned validate_stack(stack* stk)
             return error_bitmask;
         }
     )
-
-    IF_SNITCH_ON
-    (
-        if (stk->left_snitch  != SNITCH_VALUE)
-            error_bitmask |= 1 << DEAD_LEFT_SNITCH;
-
-        if (stk->right_snitch != SNITCH_VALUE)
-            error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
-    )
-
-    if (stk->capacity     < 0)
-        error_bitmask |= 1 << NEGATIVE_CAPACITY;
-
-    if (stk->size         < 0)
-        error_bitmask |= 1 << NEGATIVE_SIZE;
-
-    if (stk->size         > stk->capacity)
-        error_bitmask |= 1 << WRONG_SIZE;
-
-    if (!stk->data)
-        error_bitmask |= 1 << NULL_DATA;
 
     IF_SNITCH_ON
     (
@@ -241,9 +239,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
                 }
             }
             IF_SNITCH_ON(fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(snitch_t*)(stk->data + stk->capacity));)
-
             fprintf(file_ptr, TAB "}\n");
-
         }
     }
     fprintf(file_ptr, "}\n");
@@ -325,7 +321,6 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     assert(stk);
     assert(new_capacity > stk->size);
 
-    // Realloc vs calloc + memcpy?
     #ifdef SNITCH
     *(snitch_t*)(stk->data + stk->capacity) = 0;
     elem_t* new_data = (elem_t*) realloc((char*)stk->data - sizeof(snitch_t), new_capacity * sizeof(new_data[0]) + 2 * sizeof(snitch_t));
@@ -345,13 +340,8 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         stk->data = data_ptr;
         stk->capacity = new_capacity;
 
-        #ifdef SNITCH
-        paste_snitch_value(stk->data + stk->capacity);
-        #endif
-
-        #ifdef HASH
-        update_stack_hash(stk);
-        #endif
+        IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity);)
+        IF_HASH_ON(update_stack_hash(stk);)
 
         return NO_ERROR;
     }
@@ -371,10 +361,7 @@ unsigned push_stack(stack* stk, const elem_t value)
     {
         return 0 | 1 << realloc_stack(stk, new_capacity);
     }
-
-    #ifdef HASH
-    update_stack_hash(stk);
-    #endif
+    IF_HASH_ON(update_stack_hash(stk);)
 
     return 0 | 1 << NO_ERROR;
 }
@@ -395,9 +382,7 @@ unsigned pop_stack(stack* stk, elem_t* const value)
             {
                 return realloc_stack(stk, new_capacity);
             }
-            #ifdef HASH
-            update_stack_hash(stk);
-            #endif
+            IF_HASH_ON(update_stack_hash(stk);)
         }
         return 0 | 1 << ANTI_OVERFLOW;
     }
@@ -433,10 +418,11 @@ stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
             stk->size     = 0;
             stk->capacity = capacity;
 
-            #ifdef SNITCH
+            IF_SNITCH_ON
+            (
             paste_snitch_value(data);
             paste_snitch_value(stk->data + capacity);
-            #endif
+            )
 
             fill_data_with_poison(stk->data, stk->capacity);
 
@@ -445,10 +431,11 @@ stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
             stk->init_info.line      = info->line;
             stk->init_info.func_name = info->func_name;
 
-            #ifdef HASH
+            IF_HASH_ON
+            (
             stk->struct_hash = get_stack_hash(stk);
             stk->data_hash = get_hash(stk->data, capacity * sizeof(elem_t));
-            #endif
+            )
         }
         return NULL_DATA;
     }
@@ -497,7 +484,7 @@ stack_error_code destruct_stack(stack* stk)
 
 static const char* get_log_file_name()
 {
-    static char file_name[128] = {};
+    static char file_name[FILE_NAME_SIZE] = {};
 
     time_t current_time = time(0);
     struct tm* tm_info = localtime(&current_time);
