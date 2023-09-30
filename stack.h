@@ -3,6 +3,17 @@
 
 #include <limits.h>
 
+/// Example
+/// ~~~~~~~~~~~~~~~~~~~~~~~
+///#define VALUE_TYPE char
+///#define ELEM_FORMAT "%c"
+///#define POISON_VAL 10
+///#include "stack.h"
+///#undef VALUE_TYPE
+///#undef ELEM_FORMAT
+///#undef POISON_VAL
+/// ~~~~~~~~~~~~~~~~~~~~~~~
+/// Set VALUE_TYPE, POISON_VAL, ELEM_FORMAT to default if not all 3 macros defined
 #if !defined(VALUE_TYPE) || !defined(POISON_VAL) || !defined(ELEM_FORMAT)
     #undef VALUE_TYPE
     #undef POISON_VAL
@@ -44,14 +55,18 @@
 
 #ifdef SNITCH
     #define IF_SNITCH_ON(...) __VA_ARGS__
+    #define IF_SNITCH_OFF(...)
 #else
     #define IF_SNITCH_ON(...)
+    #define IF_SNITCH_OFF(...) __VA_ARGS__
 #endif
 
 #ifdef HASH
     #define IF_HASH_ON(...) __VA_ARGS__
+    #define IF_HASH_OFF(...)
 #else
     #define IF_HASH_ON(...)
+    #define IF_HASH_OFF(...) __VA_ARGS__
 #endif
 
 #define STACK_ERRORS\
@@ -71,6 +86,13 @@
     INIT_ERROR(NULL_VALUE_PTR)\
     INIT_ERROR(ANTI_OVERFLOW)
 
+/// Macro wraps to enum
+/// {
+///     NO_ERROR,
+///     NULL_STACK_POINTER,
+///     ...
+///     ANTI_OVERFLOW,
+/// }
 enum stack_error_code
 {
     #define INIT_ERROR(ERR_CODE) ERR_CODE,
@@ -97,45 +119,52 @@ const VALUE_TYPE POISON_VALUE = POISON_VAL;
 typedef VALUE_TYPE elem_t;
 typedef unsigned long long snitch_t;
 const snitch_t SNITCH_VALUE = 0xABADC0DEDA551337;     // A BAD CODED ASS 1337
+extern const char* log_file_name;  ///< File name for log functions
 
 typedef struct STACK
 {
-    IF_SNITCH_ON
-    (
-    snitch_t left_snitch = SNITCH_VALUE;
-    )
+    IF_SNITCH_ON(snitch_t left_snitch = SNITCH_VALUE;)
 
     struct initialize_info init_info;
     elem_t* data;
     ssize_t size;
     ssize_t capacity;
 
-    IF_HASH_ON
-    (
+    #ifdef HASH
     unsigned struct_hash;
     unsigned data_hash;
-    )
+    #endif
 
-    IF_SNITCH_ON
-    (
-    snitch_t right_snitch = SNITCH_VALUE;
-    )
+    IF_SNITCH_ON(snitch_t right_snitch = SNITCH_VALUE;)
 } stack;
 
+/// @brief Initialize stack with poison value@n
+///        Should be used through macro init_stack
 stack_error_code (init_stack)(stack* stk, struct initialize_info* info);
 
+/// @brief Write value to stack to last position
+/// @return Bitmask that contains errors
 unsigned push_stack(stack* stk, const elem_t value);
 
+/// @brief Get last value from stack
+/// @return Bitmask that contains errors
 unsigned pop_stack(stack* stk, elem_t* const value);
 
+/// @brief Destruct stack and its members
 stack_error_code destruct_stack(stack* stk);
 
+/// @brief Print all info about stack that can safely get
 stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask, struct dump_info* info);
 
+/// @brief Open html file for log@n
+/// @return True if error occurred
 bool open_html();
 
+/// @brief Print dump_stack to log file
 void log_stack_to_html(stack* stk);
 
+/// @brief Close html file
+/// @return True if error occurred
 bool close_html();
 
 #endif

@@ -20,37 +20,16 @@ int main()
     DEBUG_MSG("push_stack(stk_ptr, 3);\n");
     dump_stack(stdout, stk_ptr, 0);
 
+    log_stack_to_html(stk_ptr);
 
-    // log_stack_to_html(stk_ptr, 0);
+    stk.size = -1;
+    stk.capacity = -1;
 
     push_stack(stk_ptr, 64);
     DEBUG_MSG("push_stack(stk_ptr, 4);\n");
     dump_stack(stdout, stk_ptr, 0);
 
     // stk.capacity = 1000000;
-    stk.size = 1000000;
-//
-//
-    push_stack(stk_ptr, 65);
-//     DEBUG_MSG("push_stack(stk_ptr, 5);\n");
-//     dump_stack(stdout, stk_ptr);
-//
-//     push_stack(stk_ptr, 66);
-//     DEBUG_MSG("push_stack(stk_ptr, 6);\n");
-//     dump_stack(stdout, stk_ptr);
-//
-//     elem_t value = 0;
-//     pop_stack(stk_ptr, &value);
-//     dump_stack(stdout, stk_ptr);
-//     pop_stack(stk_ptr, &value);
-//     dump_stack(stdout, stk_ptr);
-//     pop_stack(stk_ptr, &value);
-//     dump_stack(stdout, stk_ptr);
-//     pop_stack(stk_ptr, &value);
-//     dump_stack(stdout, stk_ptr);
-//     pop_stack(stk_ptr, &value);
-//     dump_stack(stdout, stk_ptr);
-
     destruct_stack(stk_ptr);
     dump_stack(stdout, stk_ptr, 0);
 
