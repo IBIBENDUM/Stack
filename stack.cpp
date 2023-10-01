@@ -159,11 +159,10 @@ stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
             stk->size     = 0;
             stk->capacity = capacity;
 
-            IF_SNITCH_ON
-            (
-                paste_snitch_value(data);
-                paste_snitch_value(stk->data + capacity);
-            )
+            #ifdef SNITCH
+            paste_snitch_value(data);
+            paste_snitch_value(stk->data + capacity);
+            #endif
 
             fill_data_with_poison(stk->data, stk->capacity);
 
@@ -208,7 +207,7 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     assert(stk);
     assert(new_capacity > stk->size);
 
-    IF_SNITCH_ON(*(snitch_t*)(stk->data + stk->capacity)= 0);
+    IF_SNITCH_ON(*(snitch_t*)(stk->data + stk->capacity) = 0);
     char*  realloc_ptr  = (char*)stk->data IF_SNITCH_ON(- sizeof(snitch_t));
     size_t realloc_size = new_capacity * sizeof(elem_t) IF_SNITCH_ON(+ 2 * sizeof(snitch_t));
     elem_t* new_data = (elem_t*) realloc(realloc_ptr, realloc_size);
@@ -221,8 +220,8 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         stk->data     = data_ptr;
         stk->capacity = new_capacity;
 
-        IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity);)
-        IF_HASH_ON  (update_stack_hash(stk);)
+        IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity));
+        IF_HASH_ON  (update_stack_hash(stk));
 
         return NO_ERROR;
     }
@@ -240,7 +239,7 @@ unsigned push_stack(stack* stk, const elem_t value)
     if (new_capacity)
         return 0 | 1 << realloc_stack(stk, new_capacity);
 
-    IF_HASH_ON(update_stack_hash(stk);)
+    IF_HASH_ON(update_stack_hash(stk));
 
     return 0 | 1 << NO_ERROR;
 }
@@ -260,7 +259,7 @@ unsigned pop_stack(stack* stk, elem_t* const value)
             if (new_capacity)
                 return realloc_stack(stk, new_capacity);
 
-            IF_HASH_ON(update_stack_hash(stk);)
+            IF_HASH_ON(update_stack_hash(stk));
         }
         return 0 | 1 << ANTI_OVERFLOW;
     }
