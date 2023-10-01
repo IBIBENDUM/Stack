@@ -26,8 +26,9 @@
         }\
     } while(0)
 
-#define LOG_STACK(STK, ERROR_BITMASK)\
+#define LOG_STACK(STK)\
     do {\
+        unsigned ERROR_BITMASK = validate_stack(STK);\
         dump_stack(stderr, STK, ERROR_BITMASK);\
         log_stack_to_html(STK);\
     } while(0)
@@ -218,7 +219,7 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
 
         IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity));
         IF_HASH_ON  (update_stack_hash(stk));
-        LOG_STACK(stk, 0);
+        LOG_STACK(stk);
 
         return NO_ERROR;
     }
@@ -237,7 +238,7 @@ unsigned push_stack(stack* stk, const elem_t value)
         return 0 | 1 << realloc_stack(stk, new_capacity);
 
     IF_HASH_ON(update_stack_hash(stk));
-    LOG_STACK(stk, 0);
+    LOG_STACK(stk);
 
     return 0 | 1 << NO_ERROR;
 }
@@ -258,7 +259,7 @@ unsigned pop_stack(stack* stk, elem_t* const value)
                 return 0 | 1 << realloc_stack(stk, new_capacity);
 
             IF_HASH_ON(update_stack_hash(stk));
-            LOG_STACK(stk, 0);
+            LOG_STACK(stk);
         }
         return 0 | 1 << ANTI_OVERFLOW;
     }

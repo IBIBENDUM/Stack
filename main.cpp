@@ -17,7 +17,7 @@ int main()
     init_stack(stk);
     push_stack(stk_ptr, 63);
     push_stack(stk_ptr, 64);
-    dump_stack(stdout, stk_ptr, 1);
+
     int value = 0;
     pop_stack(stk_ptr, &value);
 
