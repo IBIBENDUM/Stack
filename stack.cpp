@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <direct.h>
 #include <assert.h>
 #include <time.h>
 
@@ -25,15 +26,10 @@
         }\
     } while(0)
 
-#define write_stack_log(STK)\
+#define LOG_STACK(STK, ERROR_BITMASK)\
     do {\
-        unsigned ERROR_BITMASK = validate_stack(STK);\
-        struct dump_info INFO = {\
-                                    .file_name = __FILE__,\
-                                    .line = __LINE__,\
-                                    .func_name = __PRETTY_FUNCTION__\
-                                };\
-        (write_stack_log)(STK, ERROR_BITMASK, &INFO);\
+        dump_stack(stderr, STK, ERROR_BITMASK);\
+        log_stack_to_html(STK);\
     } while(0)
 
 #define TAB "    " // Because \t is too big
@@ -57,6 +53,7 @@ static void update_stack_hash(stack* stk);
 static const char* get_log_file_name();
 
 FILE* log_file_ptr = NULL;
+const char* logs_folder_name = "logs";
 const char* log_file_name = get_log_file_name(); ///< Set log_file_name to "stack_log_HH_MM_SS.html" format
 
 /// @return Bitmask that contains all found errors
@@ -221,6 +218,7 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
 
         IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity));
         IF_HASH_ON  (update_stack_hash(stk));
+        LOG_STACK(stk, 0);
 
         return NO_ERROR;
     }
@@ -239,6 +237,7 @@ unsigned push_stack(stack* stk, const elem_t value)
         return 0 | 1 << realloc_stack(stk, new_capacity);
 
     IF_HASH_ON(update_stack_hash(stk));
+    LOG_STACK(stk, 0);
 
     return 0 | 1 << NO_ERROR;
 }
@@ -256,9 +255,10 @@ unsigned pop_stack(stack* stk, elem_t* const value)
             ssize_t new_capacity = 0;
             calculate_new_capacity(stk, &new_capacity);
             if (new_capacity)
-                return realloc_stack(stk, new_capacity);
+                return 0 | 1 << realloc_stack(stk, new_capacity);
 
             IF_HASH_ON(update_stack_hash(stk));
+            LOG_STACK(stk, 0);
         }
         return 0 | 1 << ANTI_OVERFLOW;
     }
@@ -290,7 +290,7 @@ stack_error_code destruct_stack(stack* stk)
                 #endif
 
                 FREE_AND_NULL(data_ptr);
-                
+
                 return NO_ERROR;
             }
             return NEGATIVE_CAPACITY;
@@ -342,7 +342,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     print_errors(file_ptr, error_bitmask);
-    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name);                                                                            stk->init_info.line, stk->init_info.func_name);
+    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name, stk->init_info.line, stk->init_info.func_name);
     fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
 
     if(!stk)
@@ -350,9 +350,9 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
         fprintf(file_ptr, "NULL_STACK_POINTER\n");
         return NULL_STACK_POINTER;
     }
-    IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch);)
+    IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch));
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
-    
+
     if (!(error_bitmask & (0 | 1 << WRONG_STRUCT_HASH)))
     {
         if (stk->data)
@@ -378,19 +378,19 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
                         fprintf(file_ptr, TAB TAB "... (POISON)\n");
                 }
             }
-            IF_SNITCH_ON(fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(snitch_t*)(stk->data + stk->capacity));)
+            IF_SNITCH_ON(fprintf(file_ptr, TAB TAB "data_right_snitch = 0x%llX\n", *(snitch_t*)(stk->data + stk->capacity)));
             fprintf(file_ptr, TAB "}\n");
         }
     }
     fprintf(file_ptr, "}\n");
-    IF_SNITCH_ON(fprintf(file_ptr, "struct_right_snitch = 0x%llX\n", stk->right_snitch);)
+    IF_SNITCH_ON(fprintf(file_ptr, "struct_right_snitch = 0x%llX\n", stk->right_snitch));
 
     IF_HASH_ON(fprintf(file_ptr, "struct_hash = 0x%llX\n", stk->struct_hash));
     IF_HASH_ON(fprintf(file_ptr, "data_hash = 0x%llX\n", stk->data_hash));
 
     print_separator(file_ptr);
     if (!stk->data) return NULL_DATA;
-    
+
     return NO_ERROR;
 }
 
@@ -469,17 +469,43 @@ static const char* get_log_file_name()
 
     time_t current_time = time(0);
     struct tm* tm_info = localtime(&current_time);
-    strftime(file_name, sizeof(file_name), "logs/stack_log_%H_%M_%S.html", tm_info);
-    
+    strftime(file_name, sizeof(file_name), "stack_log_%H_%M_%S.html", tm_info);
+
     return file_name;
+}
+
+bool get_log_file_name_with_folder(char* full_file_name)
+{
+    if (!strcat(full_file_name, logs_folder_name))
+        return true;
+    if (!strcat(full_file_name, "/"))
+        return true;
+    if (!strcat(full_file_name, log_file_name))
+        return true;
+
+    return false;
 }
 
 bool open_html()
 {
     if (!log_file_name)
+    {
+        DEBUG_MSG("Incorrect logs file name");
         return true;
+    }
+    if (_mkdir(logs_folder_name) == ENOENT)
+    {
+        DEBUG_MSG("Path not found");
+        return true;
+    }
+    char full_file_name[FILE_NAME_SIZE] = {};
+    if (get_log_file_name_with_folder(full_file_name))
+    {
+        DEBUG_MSG("Can't get full file name");
+        return true;
+    }
 
-    log_file_ptr = fopen(log_file_name, "a");
+    log_file_ptr = fopen(full_file_name, "a");
     if (!log_file_ptr)
     {
         DEBUG_MSG("[%s] %s: Error at file open\n", __FILE__, __PRETTY_FUNCTION__);

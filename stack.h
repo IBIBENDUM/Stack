@@ -3,6 +3,11 @@
 
 #include <limits.h>
 
+/// -DDEBUG  enable debug messages and logs
+/// -DHASH   enable hash protection
+/// -DSNITCH enable shitch protection
+
+
 /// Example
 /// ~~~~~~~~~~~~~~~~~~~~~~~
 ///#define VALUE_TYPE char
@@ -120,6 +125,7 @@ typedef VALUE_TYPE elem_t;
 typedef unsigned long long snitch_t;
 const snitch_t SNITCH_VALUE = 0xABADC0DEDA551337;     // A BAD CODED ASS 1337
 extern const char* log_file_name;  ///< File name for log functions
+extern const char* logs_folder_name;
 
 typedef struct STACK
 {
