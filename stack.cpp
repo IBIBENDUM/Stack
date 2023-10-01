@@ -340,11 +340,6 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
                                                                                 stk->init_info.line, stk->init_info.func_name);
     fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
 
-    if(!stk)
-    {
-        fprintf(file_ptr, "NULL_STACK_POINTER\n");
-        return NULL_STACK_POINTER;
-    }
     IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch));
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
 
