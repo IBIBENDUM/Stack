@@ -86,14 +86,6 @@ static unsigned validate_stack(stack* stk)
         error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
     #endif
 
-    #ifdef HASH
-    if (stk->struct_hash  != get_stack_hash(stk))
-        error_bitmask |= 1 << WRONG_STRUCT_HASH;
-
-    if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
-        error_bitmask |= 1 << WRONG_DATA_HASH;
-    #endif
-
     #ifdef SNITCH
     if (stk->data)
     {
@@ -102,6 +94,14 @@ static unsigned validate_stack(stack* stk)
         if (*(snitch_t*)(stk->data + stk->capacity) != SNITCH_VALUE)
             error_bitmask |= 1 << DEAD_RIGHT_DATA_SNITCH;
     }
+    #endif
+
+    #ifdef HASH
+    if (stk->struct_hash  != get_stack_hash(stk))
+        error_bitmask |= 1 << WRONG_STRUCT_HASH;
+
+    if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
+        error_bitmask |= 1 << WRONG_DATA_HASH;
     #endif
 
     return error_bitmask;
