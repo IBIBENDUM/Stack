@@ -19,6 +19,7 @@
         if (ERROR_BITMASK)\
         {\
             dump_stack(stderr, STK, ERROR_BITMASK);\
+            printf("ERROR");\
             log_stack_to_html(STK);\
             close_html();\
             assert(0);\
@@ -128,7 +129,7 @@ static ssize_t align_stack_size(ssize_t size)
 }
 
 /// @brief Initialize stack with poison value@n
-///        Should be used through macro init_stack
+///        Should be used through macro
 stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
 {
     assert(info);
@@ -211,7 +212,7 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         stk->capacity = new_capacity;
 
         IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity));
-        IF_HASH_ON  (update_stack_hash(stk));
+        IF_HASH_ON(update_stack_hash(stk));
         LOG_STACK(stk);
 
         return NO_ERROR;
@@ -222,7 +223,6 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
 unsigned push_stack(stack* stk, const elem_t value)
 {
     RETURN_ERR_IF_STK_WRONG(stk);
-
     stk->data[stk->size++] = value;
 
     ssize_t new_capacity = 0;
@@ -336,6 +336,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     print_errors(file_ptr, error_bitmask);
+
     fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
                                                                                 stk->init_info.line, stk->init_info.func_name);
     fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);

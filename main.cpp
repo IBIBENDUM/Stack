@@ -7,6 +7,7 @@
 // #undef VALUE_TYPE
 // #undef ELEM_FORMAT
 // #undef POISON_VAL
+#include <stdlib.h>
 int main()
 {
     stack stk;
@@ -22,9 +23,7 @@ int main()
     pop_stack(stk_ptr, &value);
     pop_stack(stk_ptr, &value);
 
-
     destruct_stack(stk_ptr);
-
     close_html();
     return 0;
 }
