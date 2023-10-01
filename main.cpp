@@ -20,6 +20,7 @@ int main()
 
     int value = 0;
     pop_stack(stk_ptr, &value);
+    pop_stack(stk_ptr, &value);
 
 
     destruct_stack(stk_ptr);

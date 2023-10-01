@@ -88,24 +88,17 @@ static unsigned validate_stack(stack* stk)
 
     #ifdef HASH
     if (stk->struct_hash  != get_stack_hash(stk))
-    {
         error_bitmask |= 1 << WRONG_STRUCT_HASH;
-        return error_bitmask;
-    }
 
     if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
-    {
         error_bitmask |= 1 << WRONG_DATA_HASH;
-        return error_bitmask;
-    }
     #endif
 
     #ifdef SNITCH
-    if (!stk->data)
+    if (stk->data)
     {
         if (*((snitch_t*) stk->data - 1) != SNITCH_VALUE)
             error_bitmask |= 1 << DEAD_LEFT_DATA_SNITCH;
-
         if (*(snitch_t*)(stk->data + stk->capacity) != SNITCH_VALUE)
             error_bitmask |= 1 << DEAD_RIGHT_DATA_SNITCH;
     }
@@ -343,7 +336,8 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     print_errors(file_ptr, error_bitmask);
-    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name, stk->init_info.line, stk->init_info.func_name);
+    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
+                                                                                stk->init_info.line, stk->init_info.func_name);
     fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
 
     if(!stk)
