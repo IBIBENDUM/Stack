@@ -198,7 +198,6 @@ static stack_error_code calculate_new_capacity(const stack* stk, ssize_t* const 
     {
         *new_capacity = capacity / STACK_CAPACITY_MULTIPLIER;
     }
-
     return NO_ERROR;
 }
 
@@ -291,6 +290,7 @@ stack_error_code destruct_stack(stack* stk)
                 #endif
 
                 FREE_AND_NULL(data_ptr);
+                
                 return NO_ERROR;
             }
             return NEGATIVE_CAPACITY;
@@ -342,8 +342,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     print_errors(file_ptr, error_bitmask);
-    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
-                                                                              stk->init_info.line, stk->init_info.func_name);
+    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name);                                                                            stk->init_info.line, stk->init_info.func_name);
     fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
 
     if(!stk)
@@ -352,8 +351,8 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
         return NULL_STACK_POINTER;
     }
     IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch);)
-
     fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
+    
     if (!(error_bitmask & (0 | 1 << WRONG_STRUCT_HASH)))
     {
         if (stk->data)
@@ -365,7 +364,6 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
             {
                 fprintf(file_ptr, TAB TAB "NULL\n");
             }
-
             else
             {
 
@@ -392,6 +390,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     if (!stk->data) return NULL_DATA;
+    
     return NO_ERROR;
 }
 
@@ -470,8 +469,8 @@ static const char* get_log_file_name()
 
     time_t current_time = time(0);
     struct tm* tm_info = localtime(&current_time);
-
     strftime(file_name, sizeof(file_name), "logs/stack_log_%H_%M_%S.html", tm_info);
+    
     return file_name;
 }
 
