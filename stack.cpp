@@ -285,6 +285,8 @@ stack_error_code destruct_stack(stack* stk)
 
                 FREE_AND_NULL(data_ptr);
 
+                stk = NULL;
+
                 return NO_ERROR;
             }
             return NEGATIVE_CAPACITY;
