@@ -48,9 +48,10 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity);
 static void paste_snitch_value(void* data_void);
 static void print_separator(FILE* file_ptr);
 static void print_errors(FILE* file_ptr, const unsigned error_bitmask);
-static unsigned get_hash(const void* key, size_t len);
+static unsigned get_hash(void* key, size_t len);
 static unsigned get_stack_hash(stack* stk);
 static void update_stack_hash(stack* stk);
+bool get_log_file_name_with_folder(char* full_file_name);
 static const char* get_log_file_name();
 
 FILE* log_file_ptr = NULL;
@@ -110,13 +111,10 @@ static unsigned validate_stack(stack* stk)
 static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
 {
     assert(data_ptr);
-    assert(size >= 0);
 
     for (size_t i = 0; i < size; i++)
-    {
-        assert(0 <= i && i < size);
         data_ptr[i] = POISON_VALUE;
-    }
+
     return NO_ERROR;
 }
 
@@ -185,7 +183,7 @@ static stack_error_code calculate_new_capacity(const stack* stk, ssize_t* const 
         *new_capacity = capacity * STACK_CAPACITY_MULTIPLIER;
     }
 
-    else if (STACK_CAPACITY_MULTIPLIER * STACK_CAPACITY_MULTIPLIER * align_stack_size(size) < capacity)
+    else if ((ssize_t) (STACK_CAPACITY_MULTIPLIER * STACK_CAPACITY_MULTIPLIER * align_stack_size(size)) < capacity)
     {
         *new_capacity = capacity / STACK_CAPACITY_MULTIPLIER;
     }
@@ -338,17 +336,18 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 
     print_separator(file_ptr);
     print_errors(file_ptr, error_bitmask);
-    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%d) %s\n", stk, stk->init_info.var_name, stk->init_info.file_name,
+    //---------------------with %p strange output
+    fprintf(file_ptr, "stack[0x%llX] \"%s\" initialized from %s(%zd) %s\n", (long long unsigned int) stk, stk->init_info.var_name, stk->init_info.file_name,
                                                                                 stk->init_info.line, stk->init_info.func_name);
-    fprintf(file_ptr, "called from %s(%d) %s\n", info->file_name, info->line, info->func_name);
+    fprintf(file_ptr, "called from %s(%zd) %s\n", info->file_name, info->line, info->func_name);
 
     if(!stk)
     {
         fprintf(file_ptr, "NULL_STACK_POINTER\n");
         return NULL_STACK_POINTER;
     }
-    IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", stk->left_snitch));
-    fprintf(file_ptr, "{\n" TAB "size = %d\n" TAB "capacity = %d\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, stk->data);
+    IF_SNITCH_ON(fprintf(file_ptr, "struct_left_snitch = 0x%llX\n", (long long unsigned int) stk->left_snitch));
+    fprintf(file_ptr, "{\n" TAB "size = %zd\n" TAB "capacity = %zd\n" TAB "data[0x%llX]\n", stk->size, stk->capacity, (long long unsigned int) stk->data);
 
     if (!(error_bitmask & (0 | 1 << WRONG_STRUCT_HASH)))
     {
@@ -364,11 +363,11 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
             else
             {
 
-                for (size_t i = 0; i < stk->capacity; i++)
+                for (ssize_t i = 0; i < stk->capacity; i++)
                 {
                     while (i < stk->capacity && stk->data[i] != POISON_VALUE)
                     {
-                        fprintf(file_ptr, TAB TAB "*[%d] = " ELEM_FORMAT "\n", i, stk->data[i]);
+                        fprintf(file_ptr, TAB TAB "*[%zd] = " ELEM_FORMAT "\n", i, stk->data[i]);
                         i++;
                     }
                     if (i < stk->capacity && stk->data[i - 1] != POISON_VALUE)
@@ -382,8 +381,8 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
     fprintf(file_ptr, "}\n");
     IF_SNITCH_ON(fprintf(file_ptr, "struct_right_snitch = 0x%llX\n", stk->right_snitch));
 
-    IF_HASH_ON(fprintf(file_ptr, "struct_hash = 0x%llX\n", stk->struct_hash));
-    IF_HASH_ON(fprintf(file_ptr, "data_hash = 0x%llX\n", stk->data_hash));
+    IF_HASH_ON(fprintf(file_ptr, "struct_hash = 0x%llX\n", (long long unsigned int) stk->struct_hash));
+    IF_HASH_ON(fprintf(file_ptr, "data_hash = 0x%llX\n", (long long unsigned int) stk->data_hash));
 
     print_separator(file_ptr);
     if (!stk->data) return NULL_DATA;
@@ -392,7 +391,7 @@ stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask
 }
 
 #ifdef HASH
-static unsigned get_hash(const void* key, size_t len)
+static unsigned get_hash(void* key, size_t len)
 {
     assert(key);
     assert(len > 0);
@@ -400,9 +399,9 @@ static unsigned get_hash(const void* key, size_t len)
     const unsigned seed = 0xACAB1337;
     const unsigned MULTIPLY_VAL = 0xDED1DEAD;   // DED NOT DEAD
     const int ROTATE_VAL = 24;
-    unsigned hash = seed ^ len;
+    unsigned hash = (unsigned) seed ^ len;
 
-    const unsigned char* data = (const unsigned char *) key;
+    unsigned char* data = (unsigned char *) key;
 
     const size_t BYTES_IN_CHUNK = 4;
     while(len >= BYTES_IN_CHUNK)

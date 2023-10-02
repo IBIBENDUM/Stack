@@ -9,7 +9,7 @@
 // #undef POISON_VAL
 int main()
 {
-    stack stk;
+    stack stk = {};
     stack* stk_ptr = &stk;
 
     open_html();
@@ -26,5 +26,6 @@ int main()
     destruct_stack(stk_ptr);
 
     close_html();
+    printf("Finish!\n");
     return 0;
 }
