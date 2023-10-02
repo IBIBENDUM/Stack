@@ -89,10 +89,15 @@ static unsigned validate_stack(stack* stk)
 
     #ifdef HASH
     if (stk->struct_hash  != get_stack_hash(stk))
+    {
         error_bitmask |= 1 << WRONG_STRUCT_HASH;
-
+        return error_bitmask;
+    }
     if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
+    {
         error_bitmask |= 1 << WRONG_DATA_HASH;
+        return error_bitmask;
+    }
     #endif
 
     #ifdef SNITCH

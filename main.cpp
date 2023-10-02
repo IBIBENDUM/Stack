@@ -1,12 +1,13 @@
 #include <stdio.h>
 
-// #define VALUE_TYPE char
-// #define ELEM_FORMAT "%c"
-// #define POISON_VAL 10
+#define VALUE_TYPE char
+#define ELEM_FORMAT "%c"
+#define POISON_VAL 10
 #include "stack.h"
-// #undef VALUE_TYPE
-// #undef ELEM_FORMAT
-// #undef POISON_VAL
+#undef VALUE_TYPE
+#undef ELEM_FORMAT
+#undef POISON_VAL
+
 int main()
 {
     stack stk = {};
@@ -18,6 +19,7 @@ int main()
     push_stack(stk_ptr, 63);
     push_stack(stk_ptr, 64);
 
+    stk.data = NULL;
     int value = 0;
     pop_stack(stk_ptr, &value);
     pop_stack(stk_ptr, &value);
