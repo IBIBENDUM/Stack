@@ -7,27 +7,9 @@
 /// -DHASH   enable hash protection
 /// -DSNITCH enable shitch protection
 
-
-/// Example
-/// ~~~~~~~~~~~~~~~~~~~~~~~
-///#define VALUE_TYPE char
-///#define ELEM_FORMAT "%c"
-///#define POISON_VAL 10
-///#include "stack.h"
-///#undef VALUE_TYPE
-///#undef ELEM_FORMAT
-///#undef POISON_VAL
-/// ~~~~~~~~~~~~~~~~~~~~~~~
-/// Set VALUE_TYPE, POISON_VAL, ELEM_FORMAT to default if not all 3 macros defined
-#if !defined(VALUE_TYPE) || !defined(POISON_VAL) || !defined(ELEM_FORMAT)
-    #undef VALUE_TYPE
-    #undef POISON_VAL
-    #undef ELEM_FORMAT
-
-    #define VALUE_TYPE int
-    #define ELEM_FORMAT "%d"
-    #define POISON_VAL INT_MAX
-#endif
+#define VALUE_TYPE int
+#define ELEM_FORMAT "%d"
+#define POISON_VAL INT_MAX
 
 #define init_stack(STK)\
     do {\
