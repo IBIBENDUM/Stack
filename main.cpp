@@ -1,12 +1,12 @@
 #include <stdio.h>
 
-// #define VALUE_TYPE char
-// #define ELEM_FORMAT "%c"
-// #define POISON_VAL 10
+#define VALUE_TYPE char
+#define ELEM_FORMAT "%c"
+#define POISON_VAL 10
 #include "stack.h"
-// #undef VALUE_TYPE
-// #undef ELEM_FORMAT
-// #undef POISON_VAL
+#undef VALUE_TYPE
+#undef ELEM_FORMAT
+#undef POISON_VAL
 #include <stdlib.h>
 int main()
 {

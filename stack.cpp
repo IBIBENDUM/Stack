@@ -67,8 +67,6 @@ static unsigned validate_stack(stack* stk)
         error_bitmask |= 1 << NULL_STACK_POINTER;
         return error_bitmask;
     }
-    if (stk->capacity < 0)
-        error_bitmask |= 1 << NEGATIVE_CAPACITY;
 
     if (stk->size     < 0)
         error_bitmask |= 1 << NEGATIVE_SIZE;
@@ -87,6 +85,20 @@ static unsigned validate_stack(stack* stk)
         error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
     #endif
 
+    if (stk->capacity < 0)
+    {
+        error_bitmask |= 1 << NEGATIVE_CAPACITY;
+        return error_bitmask;
+    }
+
+    #ifdef HASH
+    if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
+    {
+        error_bitmask |= 1 << WRONG_DATA_HASH;
+        return error_bitmask;
+    }
+    #endif
+
     #ifdef SNITCH
     if (stk->data)
     {
@@ -100,9 +112,6 @@ static unsigned validate_stack(stack* stk)
     #ifdef HASH
     if (stk->struct_hash  != get_stack_hash(stk))
         error_bitmask |= 1 << WRONG_STRUCT_HASH;
-
-    if (stk->data_hash    != get_hash(stk->data, stk->capacity * sizeof(elem_t)))
-        error_bitmask |= 1 << WRONG_DATA_HASH;
     #endif
 
     return error_bitmask;
@@ -122,7 +131,7 @@ static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
 /// @return Aligned value
 static ssize_t align_stack_size(ssize_t size)
 {
-    return (sizeof(elem_t) * size + BYTE_ALIGN - sizeof(elem_t) * size % BYTE_ALIGN) / sizeof(elem_t);
+    return (size + BYTE_ALIGN - sizeof(elem_t) * size % BYTE_ALIGN) / sizeof(elem_t);
 }
 
 /// @brief Initialize stack with poison value@n
