@@ -67,8 +67,6 @@ static unsigned validate_stack(stack* stk)
         error_bitmask |= 1 << NULL_STACK_POINTER;
         return error_bitmask;
     }
-    if (stk->capacity < 0)
-        error_bitmask |= 1 << NEGATIVE_CAPACITY;
 
     if (stk->size     < 0)
         error_bitmask |= 1 << NEGATIVE_SIZE;
@@ -78,7 +76,6 @@ static unsigned validate_stack(stack* stk)
 
     if (!stk->data)
         error_bitmask |= 1 << NULL_DATA;
-
     #ifdef SNITCH
     if (stk->left_snitch  != SNITCH_VALUE)
         error_bitmask |= 1 << DEAD_LEFT_SNITCH;
@@ -86,6 +83,12 @@ static unsigned validate_stack(stack* stk)
     if (stk->right_snitch != SNITCH_VALUE)
         error_bitmask |= 1 << DEAD_RIGHT_SNITCH;
     #endif
+
+    if (stk->capacity < 1)
+    {
+        error_bitmask |= 1 << NEGATIVE_CAPACITY;
+        return error_bitmask;
+    }
 
     #ifdef HASH
     if (stk->struct_hash  != get_stack_hash(stk))
