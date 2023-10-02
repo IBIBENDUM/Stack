@@ -243,7 +243,7 @@ unsigned push_stack(stack* stk, const elem_t value)
     return 0 | 1 << NO_ERROR;
 }
 
-unsigned pop_stack(stack* stk, elem_t* const value)
+unsigned pop_stack(stack* stk, void* const value)
 {
     RETURN_ERR_IF_STK_WRONG(stk);
 
@@ -251,7 +251,7 @@ unsigned pop_stack(stack* stk, elem_t* const value)
     {
         if (stk->size - 1 >= 0)
         {
-            *value = stk->data[--stk->size];
+            *((elem_t*) value) = stk->data[--stk->size];
             stk->data[stk->size] = POISON_VALUE;
             ssize_t new_capacity = 0;
             calculate_new_capacity(stk, &new_capacity);
