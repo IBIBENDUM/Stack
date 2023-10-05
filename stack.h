@@ -7,39 +7,6 @@
 /// -DHASH   enable hash protection
 /// -DSNITCH enable shitch protection
 
-#define VALUE_TYPE int
-#define ELEM_FORMAT "%d"
-#define POISON_VAL INT_MAX
-
-#define init_stack(STK)\
-    do {\
-        struct initialize_info INFO = { .var_name = #STK,\
-                                        .file_name = __FILE__,\
-                                        .line = __LINE__,\
-                                        .func_name = __PRETTY_FUNCTION__\
-                                      };\
-        (init_stack)(&STK, &INFO);\
-    } while(0)
-
-#ifdef DEBUG
-    #define DEBUG_MSG(FORMAT, ...)\
-        do {\
-            printf(FORMAT, ##__VA_ARGS__); /* BAH: "##" because of empty __VA_ARGS__*/ \
-        } while (0)
-
-    #define dump_stack(FILE_PTR, STK, ERROR)\
-        do {\
-            struct dump_info INFO = { .file_name = __FILE__, \
-                                     .line = __LINE__,\
-                                     .func_name = __PRETTY_FUNCTION__\
-                                    };\
-            (dump_stack)(FILE_PTR, STK, ERROR, &INFO);\
-        } while(0)
-#else
-    #define DEBUG_MSG(FORMAT, ...)
-    #define dump_stack(FILE_PTR, STK, ERROR)
-#endif
-
 #ifdef SNITCH
     #define IF_SNITCH_ON(...) __VA_ARGS__
     #define IF_SNITCH_OFF(...)
@@ -87,6 +54,13 @@ enum stack_error_code
     #undef INIT_ERROR
 };
 
+struct dump_info
+{
+    const char* file_name;
+    const size_t line;
+    const char* func_name;
+};
+
 struct initialize_info
 {
     const char* var_name;
@@ -95,21 +69,24 @@ struct initialize_info
     const char* func_name;
 };
 
-struct dump_info
-{
-    const char* file_name;
-    const size_t line;
-    const char* func_name;
-};
+#define init_stack(STK)\
+    do {\
+        struct initialize_info INFO = { .var_name = #STK,\
+                                        .file_name = __FILE__,\
+                                        .line = __LINE__,\
+                                        .func_name = __PRETTY_FUNCTION__\
+                                      };\
+        init_stack(&STK, &INFO);\
+    } while(0)
 
-const VALUE_TYPE POISON_VALUE = POISON_VAL;
+#define VALUE_TYPE int
+#define ELEM_FORMAT "%d"
+const VALUE_TYPE POISON_VALUE = INT_MAX;
 typedef VALUE_TYPE elem_t;
 typedef unsigned long long snitch_t;
 const snitch_t SNITCH_VALUE = 0xABADC0DEDA551337;     // A BAD CODED ASS 1337
-extern const char* log_file_name;  ///< File name for log functions
-extern const char* logs_folder_name;
 
-typedef struct STACK
+typedef struct stack
 {
     IF_SNITCH_ON(snitch_t left_snitch = SNITCH_VALUE;)
 
@@ -141,18 +118,6 @@ unsigned pop_stack(stack* stk, elem_t* const value);
 /// @brief Destruct stack and its members
 stack_error_code destruct_stack(stack* stk);
 
-/// @brief Print all info about stack that can safely get
-stack_error_code (dump_stack)(FILE* file_ptr, stack* stk, unsigned error_bitmask, struct dump_info* info);
-
-/// @brief Open html file for log@n
-/// @return True if error occurred
-bool open_html();
-
-/// @brief Print dump_stack to log file
-void log_stack_to_html(stack* stk);
-
-/// @brief Close html file
-/// @return True if error occurred
-bool close_html();
+unsigned validate_stack(stack* stk);
 
 #endif

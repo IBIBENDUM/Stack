@@ -1,3 +1,4 @@
 .html
 .bat
 \logs
+*.exe
