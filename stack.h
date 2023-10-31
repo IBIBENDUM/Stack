@@ -23,6 +23,7 @@
     #define IF_HASH_OFF(...) __VA_ARGS__
 #endif
 
+// TODO: move to other file
 #define STACK_ERRORS\
     INIT_ERROR(NO_ERROR)\
     INIT_ERROR(NULL_STACK_POINTER)\
@@ -51,24 +52,33 @@ enum stack_error_code
 {
     #define INIT_ERROR(ERR_CODE) ERR_CODE,
         STACK_ERRORS
+
+    // TODO: It's better to use something like "stack.inc" in a separate instead
     #undef INIT_ERROR
 };
 
-struct dump_info
+// TODO: Just make your error_codes the same
+//       as your error values...
+
+
+struct dump_info // TODO: better name
 {
     const char* file_name;
     const size_t line;
     const char* func_name;
 };
 
-struct initialize_info
+struct initialize_info // TODO: better name
 {
     const char* var_name;
+
+    // TODO: this looks like your dump_info:
     const char* file_name;
     ssize_t line;
     const char* func_name;
 };
 
+// TODO: align "\"
 #define init_stack(STK)\
     do {\
         struct initialize_info INFO = { .var_name = #STK,\
@@ -79,8 +89,39 @@ struct initialize_info
         init_stack(&STK, &INFO);\
     } while(0)
 
+// ==> Meaning... Do this:
+
+/* #define init_stack(STK)                                                  \ */
+/*     do {                                                                 \ */
+/*         struct initialize_info INFO = { .var_name = #STK,                \ */
+/*                                         .file_name = __FILE__,           \ */
+/*                                         .line = __LINE__,                \ */
+/*                                         .func_name = __PRETTY_FUNCTION__ \ */
+/*                                       };                                 \ */
+/*         init_stack(&STK, &INFO);                                         \ */
+/*     } while(0) */
+
+
+// ==> Instead of this:
+
+/* #define init_stack(STK)\ */
+/*     do {\ */
+/*         struct initialize_info INFO = { .var_name = #STK,\ */
+/*                                         .file_name = __FILE__,\ */
+/*                                         .line = __LINE__,\ */
+/*                                         .func_name = __PRETTY_FUNCTION__\ */
+/*                                       };\ */
+/*         init_stack(&STK, &INFO);\ */
+/*     } while(0) */
+
+
+// TODO: define AND typedef?
 #define VALUE_TYPE int
 #define ELEM_FORMAT "%d"
+
+
+// TODO: You can achive generic stack template parametrization
+//       via a macros and ##type mangling
 const VALUE_TYPE POISON_VALUE = INT_MAX;
 typedef VALUE_TYPE elem_t;
 typedef unsigned long long snitch_t;
@@ -106,10 +147,12 @@ typedef struct stack
 /// @brief Initialize stack with poison value@n
 ///        Should be used through macro init_stack
 stack_error_code (init_stack)(stack* stk, struct initialize_info* info);
+// TODO:         ^          ^ whyyy?
 
 /// @brief Write value to stack to last position
 /// @return Bitmask that contains errors
 unsigned push_stack(stack* stk, const elem_t value);
+// TODO:                        ^~~~~ why const here?
 
 /// @brief Get last value from stack
 /// @return Bitmask that contains errors

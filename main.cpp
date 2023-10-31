@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "stack.h"
-#include "stack_logs.h"
+#include "stack_logs.h" // TODO: newline?
 int main()
 {
     stack stk = {};
