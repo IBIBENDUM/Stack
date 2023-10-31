@@ -7,6 +7,7 @@
             printf(FORMAT, ##__VA_ARGS__); /* BAH: "##" because of empty __VA_ARGS__*/ \
         } while (0)
 
+    // TODO: I've already seen something a lot like it
     #define dump_stack(FILE_PTR, STK, ERROR)\
         do {\
             struct dump_info INFO = { .file_name = __FILE__, \
@@ -16,6 +17,8 @@
             dump_stack(FILE_PTR, STK, ERROR, &INFO);\
         } while(0)
 #else
+    // TODO: do not define them empty, use ((void) 0) to force semicolon while forbidding
+    //       any kind of assignments...
     #define DEBUG_MSG(FORMAT, ...)
     #define dump_stack(FILE_PTR, STK, ERROR)
 #endif

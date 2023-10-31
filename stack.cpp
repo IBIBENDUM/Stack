@@ -6,12 +6,23 @@
 #include "stack.h"
 #include "stack_logs.h"
 
+// TODO: why is this a macro?
+
+// And not a function like so:
+
+// void free_and_null(void **pointer) {
+//     free(*pointer);
+//     *pointer = NULL;
+// }
+
 #define FREE_AND_NULL(PTR)\
     do {\
         free(PTR);\
         PTR = NULL;\
     } while(0)
 
+// TODO: STACK is NEVER wrong
+// TODO: why is this a macro?
 #define RETURN_ERR_IF_STK_WRONG(STK)\
     do {\
         unsigned ERROR_BITMASK = validate_stack(STK);\
@@ -25,6 +36,9 @@
         }\
     } while(0)
 
+// TODO: assert(0)?
+
+
 #define LOG_STACK(STK)\
     do {\
         unsigned ERROR_BITMASK = validate_stack(STK);\
@@ -32,9 +46,16 @@
         log_stack_to_file(STK);\
     } while(0)
 
+// TODO: figure out what is this and do everything in your ability to make it's purpose obvious
+//       for the next time:
 const size_t BYTE_ALIGN = 8; ///< @see align_stack_size()
 const size_t STACK_CAPACITY_MULTIPLIER = 2; ///< Capacity multiplier @see calculate_new_capacity()
+
+// TODO: Why 1? Do you have no respect for poor children in Uganda answering your calloc calls? 
 const ssize_t DEFAULT_STACK_SIZE = 1; ///< Stack size on initialization @see init_stack()
+
+// TODO: You asked me to add a note that you should make it so that stack does not shrink
+//       below its initial capacity.
 
 static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size);
 static ssize_t align_stack_size(ssize_t size);
@@ -65,6 +86,23 @@ unsigned validate_stack(stack* stk)
 
     if (!stk->data)
         error_bitmask |= 1 << NULL_DATA;
+
+
+    // TODO: #ifdef/#ifndef in functions can be expressed as a separate functions:
+
+    // int check_snitches_valid(stack *stk);
+    // 
+    // #ifdef SNITCH
+    // #define check_snitches_valid(stk) check_snitches_valid(stk)
+    // #else
+    // #define check_snitches_valid(stk) 0
+    // #endif
+    // 
+    // ...
+    //
+    // int validate_stack() { ... error_bitmask |= check_snitches_valid(); ... }
+
+
     #ifdef SNITCH
     if (stk->left_snitch  != SNITCH_VALUE)
         error_bitmask |= 1 << DEAD_LEFT_SNITCH;
@@ -109,7 +147,7 @@ static stack_error_code fill_data_with_poison(elem_t* data_ptr, size_t size)
 {
     assert(data_ptr);
 
-    for (size_t i = 0; i < size; i++)
+    for (size_t i = 0; i < size; i++) // TODO: memset? Think about what do you need poison for?
         data_ptr[i] = POISON_VALUE;
 
     return NO_ERROR;
@@ -125,7 +163,7 @@ static ssize_t align_stack_size(ssize_t size)
 /// @brief Initialize stack with poison value@n
 ///        Should be used through macro init_stack
 stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
-{
+{ //             ^          ^ TODO: I'm crying
     assert(info);
     assert(info->var_name);
     assert(info->file_name);
@@ -152,7 +190,7 @@ stack_error_code (init_stack)(stack* stk, struct initialize_info* info)
 
             fill_data_with_poison(stk->data, stk->capacity);
 
-            stk->init_info.var_name  = info->var_name;
+            stk->init_info.var_name  = info->var_name; // TODO: named designated initializers
             stk->init_info.file_name = info->file_name;
             stk->init_info.line      = info->line;
             stk->init_info.func_name = info->func_name;
@@ -192,8 +230,9 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
     assert(stk);
     assert(new_capacity > stk->size);
 
+    // TODO: This logic is all over the place, why not make a separate function for snitch intialization?
     IF_SNITCH_ON(*(snitch_t*)(stk->data + stk->capacity) = 0);
-    char*  realloc_ptr  = (char*)stk->data IF_SNITCH_ON(- sizeof(snitch_t));
+    char*  realloc_ptr  = (char*)stk->data IF_SNITCH_ON(- sizeof(snitch_t)); // TODO: this logic should be extracted too
     size_t realloc_size = new_capacity * sizeof(elem_t) IF_SNITCH_ON(+ 2 * sizeof(snitch_t));
     elem_t* new_data = (elem_t*) realloc(realloc_ptr, realloc_size);
 
@@ -202,7 +241,7 @@ static stack_error_code realloc_stack(stack* stk, const ssize_t new_capacity)
         elem_t* data_ptr = new_data IF_SNITCH_ON(+ sizeof(snitch_t) / sizeof(elem_t));
 
         fill_data_with_poison(data_ptr + stk->size, new_capacity - stk->size);
-        stk->data     = data_ptr;
+        stk->data     = data_ptr; // TODO: named designators
         stk->capacity = new_capacity;
 
         IF_SNITCH_ON(paste_snitch_value(stk->data + stk->capacity));
@@ -223,7 +262,7 @@ unsigned push_stack(stack* stk, const elem_t value)
     ssize_t new_capacity = 0;
     calculate_new_capacity(stk, &new_capacity);
     if (new_capacity)
-        return 0 | 1 << realloc_stack(stk, new_capacity);
+        return 0 | 1 << realloc_stack(stk, new_capacity); // TODO: 0 | x = x \forall x
 
     IF_HASH_ON(update_stack_hash(stk));
     LOG_STACK(stk);
@@ -265,6 +304,8 @@ stack_error_code destruct_stack(stack* stk)
             if (stk->capacity > 0)
             {
                 fill_data_with_poison(data_ptr, stk->capacity);
+
+                // TODO: *stk = {}; ?
                 stk->size = -1;
                 stk->capacity = -1;
 
@@ -280,7 +321,7 @@ stack_error_code destruct_stack(stack* stk)
 
                 FREE_AND_NULL(data_ptr);
 
-                stk = NULL;
+                stk = NULL; // TODO: What is this?
 
                 return NO_ERROR;
             }
@@ -292,7 +333,7 @@ stack_error_code destruct_stack(stack* stk)
 }
 
 #ifdef SNITCH
-static void paste_snitch_value(void* data_void)
+static void paste_snitch_value(void* data_void) // TODO: rename
 {
     assert(data_void);
     snitch_t* data = (snitch_t*) data_void;
@@ -301,7 +342,7 @@ static void paste_snitch_value(void* data_void)
 #endif
 
 #ifdef HASH
-static unsigned get_hash(void* key, size_t len)
+static unsigned get_hash(void* key, size_t len) // TODO: rename
 {
     assert(key);
     assert(len > 0);

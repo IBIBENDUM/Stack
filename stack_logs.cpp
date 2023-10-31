@@ -1,7 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <direct.h>
+
+// TODO: What is <direct.h>
+// #include <direct.h>
+
 #include <assert.h>
 #include <time.h>
 
@@ -138,11 +141,11 @@ bool open_log_file()
         DEBUG_MSG("Incorrect logs file name");
         return true;
     }
-    if (_mkdir(logs_folder_name) == ENOENT)
-    {
-        DEBUG_MSG("Path not found");
-        return true;
-    }
+    // if (_mkdir(logs_folder_name) == ENOENT)
+    // {
+    //     DEBUG_MSG("Path not found");
+    //     return true;
+    // }
     char full_file_name[FILE_NAME_SIZE] = {};
     if (get_log_file_name_with_folder(full_file_name))
     {
